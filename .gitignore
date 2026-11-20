@@ -10,8 +10,16 @@ dist/
 # Tauri
 /src-tauri/gen/
 
+# 本地构建临时目录（替代 /tmp，绕开配额）
+/.build-tmp/
+/.build-target/
+
 # OS / editor
 .DS_Store
 *.swp
 .idea/
 .vscode/
+
+# 会话临时文件
+.fs_test
+icon.png.b64

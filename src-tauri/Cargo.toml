@@ -1,0 +1,20 @@
+[package]
+name = "dsh-desktop"
+version = "0.1.0"
+description = "DSH Linux desktop shell (Tauri 2)"
+authors = ["ctrlsea"]
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+strip = true
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+opt-level = "z"
