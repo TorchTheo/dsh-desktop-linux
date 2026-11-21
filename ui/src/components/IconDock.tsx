@@ -3,6 +3,7 @@ import {
   History,
   MessageSquare,
   PanelLeft,
+  Puzzle,
   RefreshCw,
   Settings,
 } from 'lucide-react'
@@ -84,6 +85,22 @@ export function IconDock() {
             <span className="absolute -left-1.5 h-3.5 w-1 bg-[#D13B27]" />
           )}
           <Activity className="h-4 w-4 stroke-[1.75]" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveView('plugins')}
+          title="插件与扩展（Ctrl+3）"
+          className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
+            activeView === 'plugins'
+              ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
+              : 'text-[#575652] hover:bg-[#E5E2D8] hover:text-[#141413]'
+          }`}
+        >
+          {activeView === 'plugins' && (
+            <span className="absolute -left-1.5 h-3.5 w-1 bg-[#D13B27]" />
+          )}
+          <Puzzle className="h-4 w-4 stroke-[1.75]" />
         </button>
 
         <div className="my-1 h-px w-5 bg-[#D8D5CB]" />

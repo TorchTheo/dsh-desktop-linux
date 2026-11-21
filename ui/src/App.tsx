@@ -5,6 +5,7 @@ import { IconDock } from './components/IconDock'
 import { InspectorPanel } from './components/InspectorPanel'
 import { SettingsModal } from './components/SettingsModal'
 import { Sidebar } from './components/Sidebar'
+import { PluginsView } from './components/PluginsView'
 import { TrajectoryView } from './components/TrajectoryView'
 import { useAppStore } from './store/useAppStore'
 
@@ -54,6 +55,9 @@ export function App() {
       } else if (e.key === '2') {
         e.preventDefault()
         useAppStore.getState().setActiveView('trajectory')
+      } else if (e.key === '3') {
+        e.preventDefault()
+        useAppStore.getState().setActiveView('plugins')
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -159,7 +163,7 @@ export function App() {
           </div>
         )}
 
-        {activeView === 'studio' ? <ChatStream /> : <TrajectoryView />}
+        {activeView === 'studio' ? <ChatStream /> : activeView === 'trajectory' ? <TrajectoryView /> : <PluginsView />}
       </main>
 
       <InspectorPanel />

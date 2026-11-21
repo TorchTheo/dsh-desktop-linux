@@ -6,6 +6,8 @@ import type {
   ApprovalOutcome,
   ApprovalRequestEvent,
   BridgeCapabilities,
+  HostRuntimeInfo,
+  PluginBundleInfo,
   ImageAttachment,
   PermissionMode,
   ProviderModels,
@@ -31,6 +33,37 @@ export function isTauriRuntime(): boolean {
 
 export async function getAppState(): Promise<AppStateSnapshot> {
   return invoke<AppStateSnapshot>('get_app_state')
+}
+
+export async function getHostInfo(): Promise<HostRuntimeInfo | null> {
+  return invoke<HostRuntimeInfo | null>('get_host_info')
+}
+
+export async function listPlugins(): Promise<PluginBundleInfo[]> {
+  return invoke<PluginBundleInfo[]>('list_plugins')
+}
+
+export async function setPluginBundleEnabled(
+  packageName: string,
+  enabled: boolean,
+): Promise<unknown> {
+  return invoke<unknown>('set_plugin_bundle_enabled', { packageName, enabled })
+}
+
+export async function setPluginEntryEnabled(
+  entryId: string,
+  moduleName: string | null,
+  enabled: boolean,
+): Promise<unknown> {
+  return invoke<unknown>('set_plugin_entry_enabled', { entryId, moduleName, enabled })
+}
+
+export async function installPluginBundle(spec: string): Promise<unknown> {
+  return invoke<unknown>('install_plugin_bundle', { spec })
+}
+
+export async function removePluginBundle(packageName: string): Promise<unknown> {
+  return invoke<unknown>('remove_plugin_bundle', { packageName })
 }
 
 export async function listWorkspaces(): Promise<WorkspaceSummary[]> {
@@ -156,6 +189,7 @@ export async function openExternalUrl(url: string): Promise<void> {
 export interface BackendEventHandlers {
   onWorkerStatus: (status: WorkerStatus) => void
   onBridgeCapabilities: (caps: BridgeCapabilities) => void
+  onHostInfo: (info: HostRuntimeInfo | null) => void
   onStreamDelta: (event: StreamDeltaEvent) => void
   onSessionStatus: (event: SessionStatusEvent) => void
   onSessionEvent: (event: UiSessionEvent) => void
@@ -175,6 +209,7 @@ export async function subscribeBackendEvents(
     listen<BridgeCapabilities>('dsh://bridge-capabilities', (e) =>
       handlers.onBridgeCapabilities(e.payload),
     ),
+    listen<HostRuntimeInfo | null>('dsh://host-info', (e) => handlers.onHostInfo(e.payload)),
     listen<StreamDeltaEvent>('dsh://stream-delta', (e) => handlers.onStreamDelta(e.payload)),
     listen<SessionStatusEvent>('dsh://session-status', (e) => handlers.onSessionStatus(e.payload)),
     listen<UiSessionEvent>('dsh://session-event', (e) => handlers.onSessionEvent(e.payload)),

@@ -6,6 +6,7 @@ export interface AppConfig {
   model: string
   reasoningEffort: string | null
   defaultCwd: string
+  profile: string
   patches: string[]
   disableDmabuf: DmabufMode
   enableBridge: boolean
@@ -17,6 +18,35 @@ export interface BridgeCapabilities {
   streamDelta: boolean
   abort: boolean
   modelControl: boolean
+  hostInfo: boolean
+  pluginManager: boolean
+}
+
+export interface HostRuntimeInfo {
+  webOrigin: string | null
+  authenticatedUrl: string | null
+  profile: string | null
+  hasWebServer: boolean
+  hasPluginManager: boolean
+}
+
+export interface PluginEntryInfo {
+  rowId: string
+  moduleName: string
+  entryId: string | null
+}
+
+export interface PluginBundleInfo {
+  name: string
+  enabled: boolean
+  installed: boolean
+  removable: boolean
+  availability: string
+  description: string | null
+  version: string | null
+  source: string | null
+  error: string | null
+  entries: PluginEntryInfo[]
 }
 
 export interface StreamDeltaEvent {
@@ -78,6 +108,7 @@ export interface AppStateSnapshot {
   sessions: SessionSummary[]
   workspaces: WorkspaceSummary[]
   bridgeCapabilities: BridgeCapabilities
+  hostInfo?: HostRuntimeInfo | null
 }
 
 export interface ImageAttachment {

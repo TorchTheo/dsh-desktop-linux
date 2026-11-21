@@ -47,6 +47,7 @@ export function SettingsModal() {
   const open = useAppStore((s) => s.settingsOpen)
   const setOpen = useAppStore((s) => s.setSettingsOpen)
   const config = useAppStore((s) => s.config)
+  const hostInfo = useAppStore((s) => s.hostInfo)
   const updateConfig = useAppStore((s) => s.updateConfig)
   const restartWorker = useAppStore((s) => s.restartWorker)
 
@@ -65,6 +66,7 @@ export function SettingsModal() {
 
   const buildConfig = (): AppConfig => ({
     ...draft,
+    profile: draft.profile?.trim() ? draft.profile.trim() : 'web',
     reasoningEffort: draft.reasoningEffort?.trim() ? draft.reasoningEffort.trim() : null,
     patches: patchesText
       .split('\n')
@@ -200,8 +202,52 @@ export function SettingsModal() {
                   checked={draft.enableBridge}
                   onChange={(enableBridge) => setDraft({ ...draft, enableBridge })}
                   label="启用 Cordis 扩展桥接插件"
-                  description="开启逐 Token 流式输出、实时停止生成、动态模型目录与会话内模型热切"
+                  description="开启逐 Token 流式输出、实时停止生成、动态模型目录、会话内模型热切与插件管理"
                 />
+
+                <div className="space-y-2 border-b border-[#ECEAE2] pb-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#575652]">
+                      DSH 运行配置集（Profile）
+                    </span>
+                    {hostInfo?.hasWebServer && (
+                      <span className="font-mono-tabular rounded border border-[#246A4D]/30 bg-[#246A4D]/10 px-1.5 py-0.5 text-[10px] text-[#1d543d]">
+                        Web Host 已就绪
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex rounded border border-[#D8D5CB] bg-[#ECEAE2] p-0.5">
+                      {[
+                        { id: 'web', label: 'web（完整插件生态）' },
+                        { id: 'sdk', label: 'sdk（轻量纯协议）' },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setDraft({ ...draft, profile: item.id })}
+                          className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
+                            draft.profile === item.id
+                              ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
+                              : 'text-[#575652] hover:text-[#141413]'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={draft.profile}
+                      onChange={(e) => setDraft({ ...draft, profile: e.target.value })}
+                      placeholder="自定义配置集名称"
+                      className="font-mono-tabular min-w-[120px] flex-1 rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2.5 py-1 text-xs text-[#141413] placeholder-[#8A8880] focus:border-[#141413] focus:bg-[#FAF9F5] focus:outline-none"
+                    />
+                  </div>
+                  <p className="text-[11px] text-[#8A8880]">
+                    推荐使用 web 配置集，以同时加载 ~/.dsh/profiles/web 中已安装的后端与前端插件。
+                  </p>
+                </div>
 
                 <label className="block space-y-1">
                   <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#575652]">

@@ -5,6 +5,8 @@ import type {
   ApprovalOutcome,
   ApprovalRequestEvent,
   BridgeCapabilities,
+  HostRuntimeInfo,
+  PluginBundleInfo,
   ImageAttachment,
   PermissionMode,
   ProviderModels,
@@ -25,7 +27,7 @@ export interface SessionMeta {
   reasoningEffort?: string | null
 }
 
-export type ActiveView = 'studio' | 'trajectory'
+export type ActiveView = 'studio' | 'trajectory' | 'plugins'
 
 export interface StreamingDraft {
   thinking: string
@@ -36,6 +38,8 @@ const DEFAULT_BRIDGE_CAPS: BridgeCapabilities = {
   streamDelta: false,
   abort: false,
   modelControl: false,
+  hostInfo: false,
+  pluginManager: false,
 }
 
 interface AppStore {
@@ -43,6 +47,11 @@ interface AppStore {
   config: AppConfig | null
   workerStatus: WorkerStatus
   bridgeCapabilities: BridgeCapabilities
+  hostInfo: HostRuntimeInfo | null
+  plugins: PluginBundleInfo[]
+  pluginsLoading: boolean
+  pluginBusyKey: string | null
+  pluginRestartRequired: boolean
   providers: ProviderModels[]
   workspaces: WorkspaceSummary[]
   sessions: SessionSummary[]
@@ -82,6 +91,11 @@ interface AppStore {
   rewindToMessage: (messageId: string, restoreWorkspace: boolean, prefillText?: string) => Promise<void>
   refreshSessions: () => Promise<void>
   fetchModels: () => Promise<void>
+  fetchPlugins: () => Promise<void>
+  setPluginBundleEnabled: (packageName: string, enabled: boolean) => Promise<void>
+  setPluginEntryEnabled: (entryId: string, moduleName: string | null, enabled: boolean) => Promise<void>
+  installPluginBundle: (spec: string) => Promise<boolean>
+  removePluginBundle: (packageName: string) => Promise<void>
   setSessionModel: (provider: string, model: string, reasoningEffort?: string | null) => Promise<void>
   setSessionPermission: (mode: PermissionMode) => Promise<void>
   abortSession: () => Promise<void>
@@ -102,6 +116,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   config: null,
   workerStatus: { state: 'idle' },
   bridgeCapabilities: DEFAULT_BRIDGE_CAPS,
+  hostInfo: null,
+  plugins: [],
+  pluginsLoading: false,
+  pluginBusyKey: null,
+  pluginRestartRequired: false,
   providers: [],
   workspaces: [],
   sessions: [],
@@ -171,6 +190,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
         if (bridgeCapabilities.modelControl) {
           void get().fetchModels()
         }
+        if (bridgeCapabilities.pluginManager) {
+          void get().fetchPlugins()
+        }
+      },
+
+      onHostInfo: (hostInfo) => {
+        set({ hostInfo })
       },
 
       onStreamDelta: ({ sessionId, blockType, delta, reset }) => {
@@ -320,12 +346,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
         config: snapshot.config,
         workerStatus: snapshot.workerStatus,
         bridgeCapabilities: caps,
+        hostInfo: snapshot.hostInfo ?? null,
         workspaces: snapshot.workspaces ?? [],
         sessions: snapshot.sessions,
         activeSessionId: initialId,
       })
       if (caps.modelControl) {
         void get().fetchModels()
+      }
+      if (caps.pluginManager) {
+        void get().fetchPlugins()
       }
       if (initialId) {
         void get().loadSessionHistory(initialId)
@@ -646,9 +676,95 @@ export const useAppStore = create<AppStore>((set, get) => ({
   restartWorker: async () => {
     try {
       const workerStatus = await api.restartWorker()
-      set({ workerStatus, errorBanner: null })
+      set({ workerStatus, errorBanner: null, pluginRestartRequired: false })
     } catch (error) {
       set({ errorBanner: `重启后端失败：${String(error)}` })
+    }
+  },
+
+  fetchPlugins: async () => {
+    set({ pluginsLoading: true })
+    try {
+      const plugins = await api.listPlugins()
+      set({ plugins, pluginsLoading: false })
+    } catch (err) {
+      set({ pluginsLoading: false, errorBanner: `获取插件列表失败：${String(err)}` })
+    }
+  },
+
+  setPluginBundleEnabled: async (packageName, enabled) => {
+    set({ pluginBusyKey: `bundle:${packageName}`, errorBanner: null })
+    try {
+      const res = (await api.setPluginBundleEnabled(packageName, enabled)) as
+        | { restartRequired?: boolean }
+        | null
+      await get().fetchPlugins()
+      const restartRequired = Boolean(res?.restartRequired)
+      set({
+        pluginBusyKey: null,
+        pluginRestartRequired: get().pluginRestartRequired || restartRequired,
+        noticeBanner: `插件 ${packageName} 已${enabled ? '启用' : '停用'}${restartRequired ? '（需重启后端生效）' : ''}`,
+      })
+    } catch (err) {
+      set({ pluginBusyKey: null, errorBanner: `切换插件状态失败：${String(err)}` })
+    }
+  },
+
+  setPluginEntryEnabled: async (entryId, moduleName, enabled) => {
+    set({ pluginBusyKey: `entry:${entryId}`, errorBanner: null })
+    try {
+      const res = (await api.setPluginEntryEnabled(entryId, moduleName, enabled)) as
+        | { restartRequired?: boolean }
+        | null
+      await get().fetchPlugins()
+      const restartRequired = Boolean(res?.restartRequired)
+      set({
+        pluginBusyKey: null,
+        pluginRestartRequired: get().pluginRestartRequired || restartRequired,
+        noticeBanner: `插件子模块已${enabled ? '启用' : '停用'}${restartRequired ? '（需重启后端生效）' : ''}`,
+      })
+    } catch (err) {
+      set({ pluginBusyKey: null, errorBanner: `切换插件子模块失败：${String(err)}` })
+    }
+  },
+
+  installPluginBundle: async (spec) => {
+    const trimmed = spec.trim()
+    if (!trimmed) return false
+    set({ pluginBusyKey: 'install', errorBanner: null })
+    try {
+      const res = (await api.installPluginBundle(trimmed)) as
+        | { restartRequired?: boolean }
+        | null
+      await get().fetchPlugins()
+      const restartRequired = Boolean(res?.restartRequired)
+      set({
+        pluginBusyKey: null,
+        pluginRestartRequired: get().pluginRestartRequired || restartRequired,
+        noticeBanner: `已安装插件：${trimmed}${restartRequired ? '（建议重启后端以完整加载）' : ''}`,
+      })
+      return true
+    } catch (err) {
+      set({ pluginBusyKey: null, errorBanner: `安装插件失败：${String(err)}` })
+      return false
+    }
+  },
+
+  removePluginBundle: async (packageName) => {
+    set({ pluginBusyKey: `remove:${packageName}`, errorBanner: null })
+    try {
+      const res = (await api.removePluginBundle(packageName)) as
+        | { restartRequired?: boolean }
+        | null
+      await get().fetchPlugins()
+      const restartRequired = Boolean(res?.restartRequired)
+      set({
+        pluginBusyKey: null,
+        pluginRestartRequired: get().pluginRestartRequired || restartRequired,
+        noticeBanner: `已卸载插件：${packageName}${restartRequired ? '（建议重启后端生效）' : ''}`,
+      })
+    } catch (err) {
+      set({ pluginBusyKey: null, errorBanner: `卸载插件失败：${String(err)}` })
     }
   },
 
