@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -453,10 +453,76 @@ const QUICK_STARTS = [
   },
 ]
 
+
+const StreamingBubble = memo(function StreamingBubble({
+  sessionId,
+  isRunning,
+  scrollContainerRef,
+}: {
+  sessionId: string | null
+  isRunning: boolean
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const streaming = useAppStore((s) => (sessionId ? s.streamingBySession[sessionId] : undefined))
+
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distFromBottom < 200) {
+      el.scrollTop = el.scrollHeight
+    }
+  }, [streaming?.text.length, streaming?.thinking.length, isRunning, scrollContainerRef])
+
+  if (streaming?.thinking || streaming?.text) {
+    return (
+      <div className="flex items-start justify-start gap-2.5">
+        <div
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#1E4D9B] bg-[#1E4D9B] text-[#FAF9F5]"
+          title="正在生成"
+        >
+          <Bot className="h-3.5 w-3.5 animate-pulse stroke-[1.9]" />
+        </div>
+        <article className="min-w-0 flex-1 max-w-[90%]">
+          {streaming.thinking && (
+            <ThinkingBlock text={streaming.thinking} defaultOpen streaming />
+          )}
+          {streaming.text && (
+            <div className="markdown-body text-[14.5px]">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {streaming.text}
+              </ReactMarkdown>
+              <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-[#D13B27] align-middle" />
+            </div>
+          )}
+        </article>
+      </div>
+    )
+  }
+
+  if (isRunning) {
+    return (
+      <div className="flex items-start justify-start gap-2.5">
+        <div
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#1E4D9B] bg-[#1E4D9B] text-[#FAF9F5]"
+          title="正在调用模型"
+        >
+          <Bot className="h-3.5 w-3.5 animate-pulse stroke-[1.9]" />
+        </div>
+        <div className="mt-1 inline-flex items-center gap-2 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-3 py-1.5 text-xs text-[#575652]">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D13B27]" />
+          <span>正在思考并调用模型...</span>
+        </div>
+      </div>
+    )
+  }
+
+  return null
+})
+
 export function ChatStream() {
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const messagesBySession = useAppStore((s) => s.messagesBySession)
-  const streamingBySession = useAppStore((s) => s.streamingBySession)
   const loadingHistoryId = useAppStore((s) => s.loadingHistoryId)
   const sessions = useAppStore((s) => s.sessions)
   const approvals = useAppStore((s) => s.approvals)
@@ -488,7 +554,7 @@ export function ChatStream() {
   } | null>(null)
 
   const isSessionRunning = activeSession?.status === 'running'
-  const streaming = activeSessionId ? streamingBySession[activeSessionId] : undefined
+  const hasActiveStreaming = useAppStore((s) => Boolean(activeSessionId && (s.streamingBySession[activeSessionId]?.text || s.streamingBySession[activeSessionId]?.thinking)))
   const isLoadingHistory = Boolean(activeSessionId && loadingHistoryId === activeSessionId)
   const sessionApprovals = approvals.filter(
     (a) => !activeSessionId || a.sessionId === activeSessionId,
@@ -533,11 +599,12 @@ export function ChatStream() {
   }, [activeSessionId, userTurns.length])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollContainerRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
   }, [
+    activeSessionId,
     messages.length,
-    streaming?.text.length,
-    streaming?.thinking.length,
     sessionApprovals.length,
     sessionQuestions.length,
   ])
@@ -572,8 +639,8 @@ export function ChatStream() {
 
   const isEmpty =
     messages.length === 0 &&
-    !streaming?.text &&
-    !streaming?.thinking &&
+    !hasActiveStreaming &&
+    !isSessionRunning &&
     sessionApprovals.length === 0 &&
     sessionQuestions.length === 0
 
@@ -742,44 +809,11 @@ export function ChatStream() {
               )
             })}
 
-            {isSessionRunning && !streaming?.thinking && !streaming?.text && (
-              <div className="flex items-start justify-start gap-2.5">
-                <div
-                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#1E4D9B] bg-[#1E4D9B] text-[#FAF9F5]"
-                  title="正在调用模型"
-                >
-                  <Bot className="h-3.5 w-3.5 animate-pulse stroke-[1.9]" />
-                </div>
-                <div className="mt-1 inline-flex items-center gap-2 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-3 py-1.5 text-xs text-[#575652]">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D13B27]" />
-                  <span>正在思考并调用模型...</span>
-                </div>
-              </div>
-            )}
-
-            {(streaming?.thinking || streaming?.text) && (
-              <div className="flex items-start justify-start gap-2.5">
-                <div
-                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#1E4D9B] bg-[#1E4D9B] text-[#FAF9F5]"
-                  title="正在生成"
-                >
-                  <Bot className="h-3.5 w-3.5 animate-pulse stroke-[1.9]" />
-                </div>
-                <article className="min-w-0 flex-1 max-w-[90%]">
-                  {streaming.thinking && (
-                    <ThinkingBlock text={streaming.thinking} defaultOpen streaming />
-                  )}
-                  {streaming.text && (
-                    <div className="markdown-body text-[14.5px]">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                        {streaming.text}
-                      </ReactMarkdown>
-                      <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-[#D13B27] align-middle" />
-                    </div>
-                  )}
-                </article>
-              </div>
-            )}
+            <StreamingBubble
+              sessionId={activeSessionId}
+              isRunning={isSessionRunning}
+              scrollContainerRef={scrollContainerRef}
+            />
 
             {subagents.length > 0 && (
               <div className="flex flex-wrap gap-2 pl-9">
@@ -807,13 +841,6 @@ export function ChatStream() {
             {sessionQuestions.map((req) => (
               <QuestionCard key={req.requestId} request={req} />
             ))}
-
-            {activeSession?.status === 'running' && !streaming?.text && !streaming?.thinking && (
-              <div className="flex items-center gap-2 pl-9 text-xs text-[#575652]">
-                <span className="h-2 w-2 animate-pulse bg-[#D13B27]" />
-                正在执行...
-              </div>
-            )}
 
             <div ref={bottomRef} />
           </div>

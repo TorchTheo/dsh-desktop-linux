@@ -141,6 +141,31 @@ interface AppStore {
   updateConfig: (config: AppConfig) => Promise<void>
 }
 
+const pendingDeltaBuffer = new Map<string, { thinking: string; text: string; reset: boolean }>()
+let deltaFlushRaf: number | null = null
+
+function mergeTelemetry(
+  prev: SessionTelemetry | undefined,
+  next: SessionTelemetry,
+): SessionTelemetry {
+  if (!prev) return next
+  return {
+    uncachedInputTokens: Math.max(prev.uncachedInputTokens, next.uncachedInputTokens),
+    cacheReadTokens: Math.max(prev.cacheReadTokens, next.cacheReadTokens),
+    cacheWriteTokens: Math.max(prev.cacheWriteTokens, next.cacheWriteTokens),
+    outputTokens: Math.max(prev.outputTokens, next.outputTokens),
+    surfaceTokens: next.surfaceTokens ?? prev.surfaceTokens ?? null,
+    contextWindow: next.contextWindow ?? prev.contextWindow ?? null,
+    systemTokens: next.systemTokens ?? prev.systemTokens ?? null,
+    toolsTokens: next.toolsTokens ?? prev.toolsTokens ?? null,
+    messageTokens: next.messageTokens ?? prev.messageTokens ?? null,
+    sandboxMode: next.sandboxMode ?? prev.sandboxMode ?? null,
+    approvalPolicy: next.approvalPolicy ?? prev.approvalPolicy ?? null,
+    turnCount: Math.max(prev.turnCount, next.turnCount),
+    snapshotCount: Math.max(prev.snapshotCount, next.snapshotCount),
+  }
+}
+
 export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   config: null,
@@ -240,21 +265,40 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
 
       onStreamDelta: ({ sessionId, blockType, delta, reset }) => {
-        set((state) => {
-          const prev = reset
-            ? { thinking: '', text: '' }
-            : (state.streamingBySession[sessionId] ?? { thinking: '', text: '' })
-          const next: StreamingDraft =
-            blockType === 'thinking'
-              ? { ...prev, thinking: prev.thinking + delta }
-              : { ...prev, text: prev.text + delta }
-          return {
-            streamingBySession: {
-              ...state.streamingBySession,
-              [sessionId]: next,
-            },
-          }
-        })
+        const entry = pendingDeltaBuffer.get(sessionId) ?? { thinking: '', text: '', reset: false }
+        if (reset) {
+          entry.thinking = ''
+          entry.text = ''
+          entry.reset = true
+        }
+        if (blockType === 'thinking') {
+          entry.thinking += delta
+        } else {
+          entry.text += delta
+        }
+        pendingDeltaBuffer.set(sessionId, entry)
+
+        if (deltaFlushRaf === null) {
+          deltaFlushRaf = window.requestAnimationFrame(() => {
+            deltaFlushRaf = null
+            if (pendingDeltaBuffer.size === 0) return
+            const batch = Array.from(pendingDeltaBuffer.entries())
+            pendingDeltaBuffer.clear()
+            set((state) => {
+              const nextMap = { ...state.streamingBySession }
+              for (const [sid, chunk] of batch) {
+                const prev = chunk.reset
+                  ? { thinking: '', text: '' }
+                  : (nextMap[sid] ?? { thinking: '', text: '' })
+                nextMap[sid] = {
+                  thinking: prev.thinking + chunk.thinking,
+                  text: prev.text + chunk.text,
+                }
+              }
+              return { streamingBySession: nextMap }
+            })
+          })
+        }
       },
 
       onSessionStatus: ({ sessionId, status }) => {
@@ -394,7 +438,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set((state) => ({
           telemetryBySession: {
             ...state.telemetryBySession,
-            [sessionId]: telemetry,
+            [sessionId]: mergeTelemetry(state.telemetryBySession[sessionId], telemetry),
           },
         }))
       },

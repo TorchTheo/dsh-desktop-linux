@@ -75,7 +75,7 @@ export function Composer({ centered = false }: ComposerProps) {
   const sessions = useAppStore((s) => s.sessions)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const config = useAppStore((s) => s.config)
-  const telemetryBySession = useAppStore((s) => s.telemetryBySession)
+  const telemetry = useAppStore((s) => (s.activeSessionId ? s.telemetryBySession[s.activeSessionId] : undefined))
   const composerDraft = useAppStore((s) => s.composerDraft)
   const consumeComposerDraft = useAppStore((s) => s.consumeComposerDraft)
   const pickAndSetWorkingDirectory = useAppStore((s) => s.pickAndSetWorkingDirectory)
@@ -119,7 +119,6 @@ export function Composer({ centered = false }: ComposerProps) {
     }
   }, [composerDraft, consumeComposerDraft])
 
-  const telemetry = activeSessionId ? telemetryBySession[activeSessionId] : undefined
   const totalInput = telemetry ? telemetry.uncachedInputTokens + telemetry.cacheReadTokens : 0
   const cacheRate = totalInput > 0 ? Math.round((telemetry!.cacheReadTokens / totalInput) * 1000) / 10 : null
   const contextUsed = telemetry?.surfaceTokens ?? null
@@ -530,11 +529,12 @@ export function Composer({ centered = false }: ComposerProps) {
               <span>
                 输出 <strong className="text-[#575652]">{telemetry ? formatCompactTokens(telemetry.outputTokens) : '--'}</strong>
               </span>
-              {contextUsed !== null && contextMax ? (
+              {contextUsed !== null ? (
                 <span>
                   上下文{" "}
                   <strong className="text-[#575652]">
-                    {formatCompactTokens(contextUsed)} / {formatCompactTokens(contextMax)}
+                    {formatCompactTokens(contextUsed)}
+                    {contextMax ? ` / ${formatCompactTokens(contextMax)}` : ''}
                     {contextPct !== null ? ` (${contextPct}%)` : ''}
                   </strong>
                 </span>
