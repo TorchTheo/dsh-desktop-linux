@@ -25,11 +25,11 @@ use uuid::Uuid;
 use crate::{
     config::AppConfig,
     domain::{
-        ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities, HostRuntimeInfo,
-        ImageAttachment, PluginBundleInfo, ProviderModels, SessionModelSelection,
-        SessionPermission, SessionRunStatus, SessionTelemetry, SessionTelemetryEvent,
-        StreamDeltaEvent, SubagentEvent, UiContentBlock, UiMessage, UiSessionEvent,
-        UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
+        ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities, ClientPluginModule,
+        HostRuntimeInfo, ImageAttachment, PluginBundleInfo, ProviderModels, ProxiedHttpResponse,
+        SessionModelSelection, SessionPermission, SessionRunStatus, SessionTelemetry,
+        SessionTelemetryEvent, StreamDeltaEvent, SubagentEvent, UiContentBlock, UiMessage,
+        UiSessionEvent, UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
     },
 };
 
@@ -199,6 +199,24 @@ impl SdkAdapter {
 
     pub async fn host_info(&self) -> Result<HostRuntimeInfo, String> {
         self.bridge_rpc("desktop/host/info", json!({})).await
+    }
+
+    pub async fn list_client_plugins(&self) -> Result<Vec<ClientPluginModule>, String> {
+        self.bridge_rpc("desktop/client-plugins/list", json!({})).await
+    }
+
+    pub async fn proxy_host_http(
+        &self,
+        method: Option<&str>,
+        path: &str,
+        headers: Option<HashMap<String, String>>,
+        body_base64: Option<&str>,
+    ) -> Result<ProxiedHttpResponse, String> {
+        self.bridge_rpc(
+            "desktop/host/http",
+            json!({"method": method, "path": path, "headers": headers, "bodyBase64": body_base64}),
+        )
+        .await
     }
 
     pub async fn list_plugins(&self) -> Result<Vec<PluginBundleInfo>, String> {
@@ -1365,6 +1383,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":13,"result":{}}'
                 model_control: true,
                 host_info: true,
                 plugin_manager: true,
+                ..BridgeCapabilities::default()
             };
             assert_eq!(adapter.capabilities(), capabilities);
             assert_eq!(

@@ -28,6 +28,48 @@ function requiredBoolean(value, field) {
   return value
 }
 
+async function hostInfo(ctx) {
+  await ctx.get('loader')?.await()
+  const webServer = ctx.get('webServer')
+  const webOrigin = webServer?.getOrigin() ?? null
+  const appUrl = ctx.get('webApp')?.getAdvertisedUrl() ?? webOrigin
+  return {
+    webOrigin,
+    authenticatedUrl: appUrl === null ? null : ctx.get('connection')?.authenticatedUrl(appUrl) ?? null,
+    profile: ctx.get('profileContext')?.name ?? null,
+    hasWebServer: webServer !== undefined,
+    hasPluginManager: ctx.get('pluginManager') !== undefined,
+  }
+}
+
+function sameOriginUrl(path, origin, base = origin) {
+  const url = new URL(path, base)
+  if (url.origin !== origin || url.username || url.password) {
+    throw new Error('Host HTTP proxy requires a URL on the local web origin')
+  }
+  return url
+}
+
+async function fetchHost(url, origin, method, headers, body) {
+  for (let redirects = 0; ; redirects++) {
+    const response = await fetch(url, { method, headers, body, redirect: 'manual' })
+    const location = response.headers.get('location')
+    if (location === null || ![301, 302, 303, 307, 308].includes(response.status)) return response
+
+    await response.body?.cancel()
+    if (redirects === 20) throw new Error('Host HTTP proxy exceeded the redirect limit')
+    url = sameOriginUrl(location, origin, url)
+    if (([301, 302].includes(response.status) && method === 'POST') ||
+        (response.status === 303 && method !== 'GET' && method !== 'HEAD')) {
+      method = 'GET'
+      body = undefined
+      for (const name of ['content-encoding', 'content-language', 'content-location', 'content-type']) {
+        headers.delete(name)
+      }
+    }
+  }
+}
+
 function pluginManagerOf(ctx) {
   const manager = ctx.get('pluginManager')
   if (manager === undefined) throw new Error('plugin manager is unavailable in this profile')
@@ -143,6 +185,74 @@ html[data-dsh-desktop-theme='bauhaus'],
     })()
   }
 
+  let session
+  function sessionFor(url) {
+    if (session?.url !== url) {
+      session = {
+        url,
+        cookie: (async () => {
+          const response = await fetch(url, { redirect: 'manual' })
+          const cookies = response.headers.getSetCookie()
+          await response.body?.cancel()
+          if (cookies.length === 0) throw new Error('Local Host did not issue a session cookie')
+          return cookies.map(cookie => cookie.split(';', 1)[0]).join('; ')
+        })(),
+      }
+    }
+    return session
+  }
+
+  async function proxyHostHttp(params) {
+    const path = requiredString(params?.path, 'path')
+    if (!path.startsWith('/') || path.startsWith('//')) {
+      throw new TypeError('path requires a leading slash on the local web origin')
+    }
+
+    const { webOrigin, authenticatedUrl } = await hostInfo(ctx)
+    if (!webOrigin || !authenticatedUrl) throw new Error('Local Host HTTP authentication is unavailable')
+    const origin = new URL(webOrigin)
+    if (!['http:', 'https:'].includes(origin.protocol) ||
+        !/^(?:127(?:\.\d{1,3}){3}|\[::1\])$/.test(origin.hostname)) {
+      throw new Error('Host HTTP proxy requires a loopback web origin')
+    }
+    const url = sameOriginUrl(path, origin.origin)
+    const authUrl = sameOriginUrl(authenticatedUrl, origin.origin).href
+    const method = params.method?.toUpperCase() ?? 'GET'
+    const headers = new Headers(params.headers ?? {})
+    for (const name of [
+      ...headers.get('connection')?.split(',').map(value => value.trim()).filter(Boolean) ?? [],
+      'host', 'content-length', 'connection', 'keep-alive', 'proxy-authenticate',
+      'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade',
+    ]) headers.delete(name)
+    const body = params.bodyBase64 == null ? undefined : Buffer.from(params.bodyBase64, 'base64')
+
+    async function send(currentSession) {
+      let cookie
+      try {
+        cookie = await currentSession.cookie
+      } catch (error) {
+        if (session === currentSession) session = undefined
+        throw error
+      }
+      const requestHeaders = new Headers(headers)
+      requestHeaders.set('cookie', cookie)
+      return fetchHost(url, origin.origin, method, requestHeaders, body)
+    }
+
+    const currentSession = sessionFor(authUrl)
+    let response = await send(currentSession)
+    if (response.status === 401 || response.status === 403) {
+      await response.body?.cancel()
+      if (session === currentSession) session = undefined
+      response = await send(sessionFor(authUrl))
+    }
+    return {
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      bodyBase64: Buffer.from(await response.arrayBuffer()).toString('base64'),
+    }
+  }
+
   transport.onRequest(async (method, params) => {
     switch (method) {
       case 'desktop/capabilities':
@@ -153,20 +263,24 @@ html[data-dsh-desktop-theme='bauhaus'],
           modelControl: true,
           hostInfo: ctx.get('webServer') !== undefined,
           pluginManager: ctx.get('pluginManager') !== undefined,
+          clientPlugins: true,
+          hostHttpProxy: true,
         }
-      case 'desktop/host/info': {
+      case 'desktop/host/info':
+        return hostInfo(ctx)
+      case 'desktop/client-plugins/list': {
         await ctx.get('loader')?.await()
-        const webServer = ctx.get('webServer')
-        const webOrigin = webServer?.getOrigin() ?? null
-        const appUrl = ctx.get('webApp')?.getAdvertisedUrl() ?? webOrigin
-        return {
-          webOrigin,
-          authenticatedUrl: appUrl === null ? null : ctx.get('connection')?.authenticatedUrl(appUrl) ?? null,
-          profile: ctx.get('profileContext')?.name ?? null,
-          hasWebServer: webServer !== undefined,
-          hasPluginManager: ctx.get('pluginManager') !== undefined,
+        const entries = ctx.get('clientModules')?.graph().entries ?? []
+        const plugins = new Map()
+        for (const { id, url } of entries) {
+          if (!id.startsWith('@deepseek-ai/') && !plugins.has(id)) {
+            plugins.set(id, { id, packageName: id, bundlePath: `/${url}` })
+          }
         }
+        return [...plugins.values()]
       }
+      case 'desktop/host/http':
+        return proxyHostHttp(params)
       case 'desktop/plugins/list': {
         const bundles = await pluginManagerOf(ctx).listBundles()
         return bundles.map(bundle => ({

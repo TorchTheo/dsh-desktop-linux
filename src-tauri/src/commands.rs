@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use serde_json::Value;
 use tauri::{AppHandle, Manager, State, Url};
@@ -9,9 +9,10 @@ use tokio::sync::oneshot;
 use crate::{
     config::AppConfig,
     domain::{
-        AppStateSnapshot, ApprovalOutcome, HostRuntimeInfo, ImageAttachment, PluginBundleInfo,
-        ProviderModels, RewindResult, SessionModelSelection, SessionPermission, SessionRunStatus,
-        SessionSummary, UiSessionDetail, WorkerStatus, WorkspaceSummary,
+        AppStateSnapshot, ApprovalOutcome, ClientPluginModule, HostRuntimeInfo, ImageAttachment,
+        PluginBundleInfo, ProviderModels, ProxiedHttpResponse, RewindResult, SessionModelSelection,
+        SessionPermission, SessionRunStatus, SessionSummary, UiSessionDetail, WorkerStatus,
+        WorkspaceSummary,
     },
     state::AppState,
     storage::{self, snapshot},
@@ -25,6 +26,28 @@ pub(crate) fn get_app_state(state: State<'_, AppState>) -> Result<AppStateSnapsh
 #[tauri::command]
 pub(crate) fn get_host_info(state: State<'_, AppState>) -> Option<HostRuntimeInfo> {
     state.host_info.read().unwrap().clone()
+}
+
+#[tauri::command]
+pub(crate) async fn list_client_plugins(
+    state: State<'_, AppState>,
+) -> Result<Vec<ClientPluginModule>, String> {
+    state.sdk().await?.list_client_plugins().await
+}
+
+#[tauri::command]
+pub(crate) async fn proxy_host_http(
+    state: State<'_, AppState>,
+    method: Option<String>,
+    path: String,
+    headers: Option<HashMap<String, String>>,
+    body_base64: Option<String>,
+) -> Result<ProxiedHttpResponse, String> {
+    state
+        .sdk()
+        .await?
+        .proxy_host_http(method.as_deref(), &path, headers, body_base64.as_deref())
+        .await
 }
 
 #[tauri::command]

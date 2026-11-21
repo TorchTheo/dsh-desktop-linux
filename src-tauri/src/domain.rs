@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
@@ -79,6 +81,10 @@ pub struct BridgeCapabilities {
     pub host_info: bool,
     #[serde(default)]
     pub plugin_manager: bool,
+    #[serde(default)]
+    pub client_plugins: bool,
+    #[serde(default)]
+    pub host_http_proxy: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,6 +95,22 @@ pub struct HostRuntimeInfo {
     pub profile: Option<String>,
     pub has_web_server: bool,
     pub has_plugin_manager: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientPluginModule {
+    pub id: String,
+    pub package_name: String,
+    pub bundle_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxiedHttpResponse {
+    pub status: u16,
+    pub headers: HashMap<String, String>,
+    pub body_base64: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

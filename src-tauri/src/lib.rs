@@ -55,6 +55,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_app_state,
             commands::get_host_info,
+            commands::list_client_plugins,
+            commands::proxy_host_http,
             commands::list_plugins,
             commands::set_plugin_bundle_enabled,
             commands::set_plugin_entry_enabled,
