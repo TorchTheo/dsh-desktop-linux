@@ -16,6 +16,8 @@ pub struct AppConfig {
     pub model: String,
     pub reasoning_effort: Option<String>,
     pub default_cwd: String,
+    #[serde(default = "default_profile")]
+    pub profile: String,
     pub patches: Vec<String>,
     #[serde(default = "default_true")]
     pub enable_bridge: bool,
@@ -30,14 +32,6 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         let home = BaseDirs::new().map(|dirs| dirs.home_dir().to_path_buf());
-        let patches = home
-            .as_ref()
-            .map(|home| home.join(".dsh/profiles/web/cordis.patch.yml"))
-            .filter(|patch| patch.is_file())
-            .map(|patch| patch.to_string_lossy().into_owned())
-            .into_iter()
-            .collect();
-
         Self {
             dsh_bin: String::new(),
             provider: "wb".into(),
@@ -48,13 +42,18 @@ impl Default for AppConfig {
                 .unwrap_or_else(|| PathBuf::from("/"))
                 .to_string_lossy()
                 .into_owned(),
-            patches,
+            profile: default_profile(),
+            patches: Vec::new(),
             enable_bridge: default_true(),
             close_to_tray: default_true(),
             desktop_notifications: default_true(),
             disable_dmabuf: "auto".into(),
         }
     }
+}
+
+fn default_profile() -> String {
+    "web".into()
 }
 
 fn default_true() -> bool {
@@ -211,13 +210,8 @@ mod tests {
         assert!(config.reasoning_effort.is_none());
         assert_eq!(config.disable_dmabuf, "auto");
         assert!(!config.default_cwd.is_empty());
-        let expected_patches: Vec<_> = BaseDirs::new()
-            .map(|dirs| dirs.home_dir().join(".dsh/profiles/web/cordis.patch.yml"))
-            .filter(|patch| patch.is_file())
-            .map(|patch| patch.to_string_lossy().into_owned())
-            .into_iter()
-            .collect();
-        assert_eq!(config.patches, expected_patches);
+        assert_eq!(config.profile, "web");
+        assert!(config.patches.is_empty());
     }
 
     #[test]
@@ -228,6 +222,7 @@ mod tests {
     #[test]
     fn config_round_trips_with_camel_case_keys() {
         let config = AppConfig {
+            profile: "sdk".into(),
             reasoning_effort: Some("high".into()),
             close_to_tray: false,
             desktop_notifications: false,

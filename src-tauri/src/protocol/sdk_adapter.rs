@@ -25,10 +25,11 @@ use uuid::Uuid;
 use crate::{
     config::AppConfig,
     domain::{
-        ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities, ImageAttachment, ProviderModels,
-        SessionModelSelection, SessionPermission, SessionRunStatus, SessionTelemetry,
-        SessionTelemetryEvent, StreamDeltaEvent, SubagentEvent, UiContentBlock, UiMessage,
-        UiSessionEvent, UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
+        ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities, HostRuntimeInfo,
+        ImageAttachment, PluginBundleInfo, ProviderModels, SessionModelSelection,
+        SessionPermission, SessionRunStatus, SessionTelemetry, SessionTelemetryEvent,
+        StreamDeltaEvent, SubagentEvent, UiContentBlock, UiMessage, UiSessionEvent,
+        UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
     },
 };
 
@@ -143,6 +144,14 @@ impl SdkAdapter {
         let _ = adapter
             .event_tx
             .send(BackendEvent::BridgeCapabilities(adapter.capabilities));
+        if adapter.capabilities.host_info {
+            match adapter.host_info().await {
+                Ok(info) => {
+                    let _ = adapter.event_tx.send(BackendEvent::HostInfo(Some(info)));
+                }
+                Err(_) => tracing::debug!("DSH host information unavailable"),
+            }
+        }
         adapter.ready_status = status.clone();
         let _ = adapter.event_tx.send(BackendEvent::WorkerStatus(status));
         adapter.dispatch = Some(tokio::spawn(dispatch_messages(
@@ -186,6 +195,52 @@ impl SdkAdapter {
         } else {
             BridgeCapabilities::default()
         }
+    }
+
+    pub async fn host_info(&self) -> Result<HostRuntimeInfo, String> {
+        self.bridge_rpc("desktop/host/info", json!({})).await
+    }
+
+    pub async fn list_plugins(&self) -> Result<Vec<PluginBundleInfo>, String> {
+        self.bridge_rpc("desktop/plugins/list", json!({})).await
+    }
+
+    pub async fn set_plugin_bundle_enabled(
+        &self,
+        package_name: &str,
+        enabled: bool,
+    ) -> Result<Value, String> {
+        self.rpc(
+            "desktop/plugins/set-bundle-enabled",
+            json!({"packageName": package_name, "enabled": enabled}),
+        )
+        .await
+    }
+
+    pub async fn set_plugin_entry_enabled(
+        &self,
+        entry_id: &str,
+        module_name: Option<&str>,
+        enabled: bool,
+    ) -> Result<Value, String> {
+        let mut params = json!({"entryId": entry_id, "enabled": enabled});
+        if let Some(module_name) = module_name {
+            params["moduleName"] = json!(module_name);
+        }
+        self.rpc("desktop/plugins/set-entry-enabled", params).await
+    }
+
+    pub async fn install_plugin_bundle(&self, spec: &str) -> Result<Value, String> {
+        self.rpc("desktop/plugins/install", json!({"spec": spec}))
+            .await
+    }
+
+    pub async fn remove_plugin_bundle(&self, package_name: &str) -> Result<Value, String> {
+        self.rpc(
+            "desktop/plugins/remove",
+            json!({"packageName": package_name}),
+        )
+        .await
     }
 
     pub async fn abort_session(&self, session_id: &str) -> Result<bool, String> {
@@ -376,25 +431,48 @@ impl ProcessGroup {
             .resolve_dsh_bin()
             .ok_or("Could not find the dsh executable")?;
         let mut command = Command::new(bin);
-        command.args(["--profile", "sdk"]);
-        for patch in &config.patches {
+        command.args(["--profile", &config.profile]);
+        let base_dirs = BaseDirs::new();
+        let web_patch = base_dirs
+            .as_ref()
+            .filter(|_| config.profile == "web")
+            .map(|dirs| dirs.home_dir().join(".dsh/profiles/web/cordis.patch.yml"));
+        let web_patch_resolved = web_patch
+            .as_ref()
+            .and_then(|path| fs::canonicalize(path).ok());
+        let is_web_patch = |patch: &Path| {
+            web_patch.as_deref() == Some(patch)
+                || web_patch_resolved.as_ref().is_some_and(|resolved| {
+                    fs::canonicalize(patch).is_ok_and(|path| path == *resolved)
+                })
+        };
+        let patches: Vec<_> = config
+            .patches
+            .iter()
+            .map(Path::new)
+            .filter(|patch| !is_web_patch(patch))
+            .collect();
+        for patch in &patches {
             command.arg("--patch").arg(patch);
         }
         if config.enable_bridge {
             if let Some(patch) = config.resolve_bridge_patch() {
                 let resolved = fs::canonicalize(&patch).ok();
-                let already_configured = config.patches.iter().any(|configured| {
-                    Path::new(configured) == patch
+                let already_configured = patches.iter().any(|configured| {
+                    **configured == patch
                         || resolved.as_ref().is_some_and(|resolved| {
                             fs::canonicalize(configured).is_ok_and(|path| path == *resolved)
                         })
                 });
-                if !already_configured {
+                if !already_configured && !is_web_patch(&patch) {
                     command.arg("--patch").arg(patch);
                 }
             }
         }
-        if let Some(dirs) = BaseDirs::new() {
+        if !matches!(config.profile.as_str(), "sdk" | "sdk-minimal") {
+            command.args(["--no-open", "--host", "127.0.0.1", "--port", "0"]);
+        }
+        if let Some(dirs) = base_dirs {
             let local_bin = dirs.home_dir().join(".local/bin");
             let inherited = env::var_os("PATH");
             let mut paths: Vec<_> = inherited.iter().flat_map(env::split_paths).collect();
@@ -1147,6 +1225,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{}}'
         let config = AppConfig {
             dsh_bin: path.to_string_lossy().into_owned(),
             reasoning_effort: Some("high".into()),
+            profile: "sdk".into(),
             patches: vec!["first patch".into(), "second".into()],
             enable_bridge: false,
             ..AppConfig::default()
@@ -1214,32 +1293,37 @@ printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{}}'
         let path = env::temp_dir().join(format!("dsh-sdk-bridge-test-{}", Uuid::new_v4()));
         fs::write(&path, r#"#!/bin/sh
 set -eu
-test "$#" = 4
-test "$1 $2 $3" = '--profile sdk --patch'
-test -f "$4"
+test "$#" = 11
+test "$1 $2 $3 $4 $5" = '--profile web --patch first patch --patch'
+test -f "$6"
+shift 6
+test "$*" = '--no-open --host 127.0.0.1 --port 0'
 IFS= read -r initialize
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"test-bridge","version":"1"}}}'
 IFS= read -r capabilities
 test "$capabilities" = '{"id":2,"jsonrpc":"2.0","method":"desktop/capabilities","params":{}}'
-printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"streamDelta":true,"abort":true,"modelControl":true}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"streamDelta":true,"abort":true,"modelControl":true,"hostInfo":true,"pluginManager":true}}'
+IFS= read -r host_info
+test "$host_info" = '{"id":3,"jsonrpc":"2.0","method":"desktop/host/info","params":{}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"webOrigin":"http://127.0.0.1:12345","authenticatedUrl":"http://127.0.0.1:12345/?token=test","profile":"web","hasWebServer":true,"hasPluginManager":true}}'
 printf '%s\n' '{"jsonrpc":"2.0","method":"desktop.stream.delta","params":{"sessionId":"s","blockType":"thinking","delta":"first","reset":true}}'
 printf '%s\n' '{"jsonrpc":"2.0","method":"desktop.stream.delta","params":{"sessionId":"s","blockType":"thinking","delta":" next"}}'
 IFS= read -r models
-test "$models" = '{"id":3,"jsonrpc":"2.0","method":"desktop/models/list","params":{}}'
-printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"providers":[{"id":"p","name":"Provider","models":[{"id":"m","name":"Model"}]}]}}'
+test "$models" = '{"id":4,"jsonrpc":"2.0","method":"desktop/models/list","params":{}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":4,"result":{"providers":[{"id":"p","name":"Provider","models":[{"id":"m","name":"Model"}]}]}}'
 IFS= read -r select
-test "$select" = '{"id":4,"jsonrpc":"2.0","method":"desktop/session/set-model","params":{"model":"m","provider":"p","reasoningEffort":"high","sessionId":"s"}}'
-printf '%s\n' '{"jsonrpc":"2.0","id":4,"result":{"provider":"p","model":"m","reasoningEffort":"high"}}'
+test "$select" = '{"id":5,"jsonrpc":"2.0","method":"desktop/session/set-model","params":{"model":"m","provider":"p","reasoningEffort":"high","sessionId":"s"}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":5,"result":{"provider":"p","model":"m","reasoningEffort":"high"}}'
 IFS= read -r select
-test "$select" = '{"id":5,"jsonrpc":"2.0","method":"desktop/session/set-model","params":{"model":"m","provider":"p","reasoningEffort":null,"sessionId":"s"}}'
-printf '%s\n' '{"jsonrpc":"2.0","id":5,"result":{"provider":"p","model":"m","reasoningEffort":null}}'
-IFS= read -r abort
-test "$abort" = '{"id":6,"jsonrpc":"2.0","method":"desktop/session/abort","params":{"sessionId":"s"}}'
-printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"aborted":true}}'
+test "$select" = '{"id":6,"jsonrpc":"2.0","method":"desktop/session/set-model","params":{"model":"m","provider":"p","reasoningEffort":null,"sessionId":"s"}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"provider":"p","model":"m","reasoningEffort":null}}'
 IFS= read -r abort
 test "$abort" = '{"id":7,"jsonrpc":"2.0","method":"desktop/session/abort","params":{"sessionId":"s"}}'
-printf '%s\n' '{"jsonrpc":"2.0","id":7,"result":{"aborted":false}}'
-id=8
+printf '%s\n' '{"jsonrpc":"2.0","id":7,"result":{"aborted":true}}'
+IFS= read -r abort
+test "$abort" = '{"id":8,"jsonrpc":"2.0","method":"desktop/session/abort","params":{"sessionId":"s"}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":8,"result":{"aborted":false}}'
+id=9
 for mode in read-only workspace-write danger-full-access; do
     policy=ask
     if [ "$mode" = danger-full-access ]; then policy=never; fi
@@ -1249,15 +1333,25 @@ for mode in read-only workspace-write danger-full-access; do
     printf '{"jsonrpc":"2.0","id":%s,"result":{"sandboxMode":"%s","approvalPolicy":"%s"}}\n' "$id" "$mode" "$policy"
     id=$((id + 1))
 done
+IFS= read -r plugins
+test "$plugins" = '{"id":12,"jsonrpc":"2.0","method":"desktop/plugins/list","params":{}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":12,"result":[{"name":"test-plugin","enabled":true,"installed":true,"removable":true,"availability":"available","description":null,"version":"1.0.0","source":null,"error":null,"entries":[{"rowId":"row","moduleName":"test-module","entryId":null}]}]}'
 IFS= read -r shutdown
-test "$shutdown" = '{"id":11,"jsonrpc":"2.0","method":"shutdown"}'
-printf '%s\n' '{"jsonrpc":"2.0","id":11,"result":{}}'
+test "$shutdown" = '{"id":13,"jsonrpc":"2.0","method":"shutdown"}'
+printf '%s\n' '{"jsonrpc":"2.0","id":13,"result":{}}'
 "#).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
 
         let config = AppConfig {
             dsh_bin: path.to_string_lossy().into_owned(),
-            patches: vec![],
+            patches: std::iter::once("first patch".into())
+                .chain(BaseDirs::new().map(|dirs| {
+                    dirs.home_dir()
+                        .join(".dsh/profiles/web/cordis.patch.yml")
+                        .to_string_lossy()
+                        .into_owned()
+                }))
+                .collect(),
             ..AppConfig::default()
         };
         let (events, mut receiver) = mpsc::unbounded_channel();
@@ -1269,6 +1363,8 @@ printf '%s\n' '{"jsonrpc":"2.0","id":11,"result":{}}'
                 stream_delta: true,
                 abort: true,
                 model_control: true,
+                host_info: true,
+                plugin_manager: true,
             };
             assert_eq!(adapter.capabilities(), capabilities);
             assert_eq!(
@@ -1278,6 +1374,16 @@ printf '%s\n' '{"jsonrpc":"2.0","id":11,"result":{}}'
             assert_eq!(
                 receiver.recv().await.unwrap(),
                 BackendEvent::BridgeCapabilities(capabilities)
+            );
+            assert_eq!(
+                receiver.recv().await.unwrap(),
+                BackendEvent::HostInfo(Some(HostRuntimeInfo {
+                    web_origin: Some("http://127.0.0.1:12345".into()),
+                    authenticated_url: Some("http://127.0.0.1:12345/?token=test".into()),
+                    profile: Some("web".into()),
+                    has_web_server: true,
+                    has_plugin_manager: true,
+                }))
             );
             assert_eq!(
                 receiver.recv().await.unwrap(),
@@ -1344,6 +1450,25 @@ printf '%s\n' '{"jsonrpc":"2.0","id":11,"result":{}}'
                     }
                 );
             }
+            assert_eq!(
+                adapter.list_plugins().await.unwrap(),
+                vec![PluginBundleInfo {
+                    name: "test-plugin".into(),
+                    enabled: true,
+                    installed: true,
+                    removable: true,
+                    availability: "available".into(),
+                    description: None,
+                    version: Some("1.0.0".into()),
+                    source: None,
+                    error: None,
+                    entries: vec![crate::domain::PluginEntryInfo {
+                        row_id: "row".into(),
+                        module_name: "test-module".into(),
+                        entry_id: None,
+                    }],
+                }]
+            );
             adapter.shutdown().await;
         })
         .await

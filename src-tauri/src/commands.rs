@@ -9,9 +9,9 @@ use tokio::sync::oneshot;
 use crate::{
     config::AppConfig,
     domain::{
-        AppStateSnapshot, ApprovalOutcome, ImageAttachment, ProviderModels, RewindResult,
-        SessionModelSelection, SessionPermission, SessionRunStatus, SessionSummary,
-        UiSessionDetail, WorkerStatus, WorkspaceSummary,
+        AppStateSnapshot, ApprovalOutcome, HostRuntimeInfo, ImageAttachment, PluginBundleInfo,
+        ProviderModels, RewindResult, SessionModelSelection, SessionPermission, SessionRunStatus,
+        SessionSummary, UiSessionDetail, WorkerStatus, WorkspaceSummary,
     },
     state::AppState,
     storage::{self, snapshot},
@@ -20,6 +20,61 @@ use crate::{
 #[tauri::command]
 pub(crate) fn get_app_state(state: State<'_, AppState>) -> Result<AppStateSnapshot, String> {
     Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub(crate) fn get_host_info(state: State<'_, AppState>) -> Option<HostRuntimeInfo> {
+    state.host_info.read().unwrap().clone()
+}
+
+#[tauri::command]
+pub(crate) async fn list_plugins(
+    state: State<'_, AppState>,
+) -> Result<Vec<PluginBundleInfo>, String> {
+    state.sdk().await?.list_plugins().await
+}
+
+#[tauri::command]
+pub(crate) async fn set_plugin_bundle_enabled(
+    state: State<'_, AppState>,
+    package_name: String,
+    enabled: bool,
+) -> Result<Value, String> {
+    state
+        .sdk()
+        .await?
+        .set_plugin_bundle_enabled(&package_name, enabled)
+        .await
+}
+
+#[tauri::command]
+pub(crate) async fn set_plugin_entry_enabled(
+    state: State<'_, AppState>,
+    entry_id: String,
+    module_name: Option<String>,
+    enabled: bool,
+) -> Result<Value, String> {
+    state
+        .sdk()
+        .await?
+        .set_plugin_entry_enabled(&entry_id, module_name.as_deref(), enabled)
+        .await
+}
+
+#[tauri::command]
+pub(crate) async fn install_plugin_bundle(
+    state: State<'_, AppState>,
+    spec: String,
+) -> Result<Value, String> {
+    state.sdk().await?.install_plugin_bundle(&spec).await
+}
+
+#[tauri::command]
+pub(crate) async fn remove_plugin_bundle(
+    state: State<'_, AppState>,
+    package_name: String,
+) -> Result<Value, String> {
+    state.sdk().await?.remove_plugin_bundle(&package_name).await
 }
 
 #[tauri::command]

@@ -15,7 +15,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     config::AppConfig,
-    domain::{BridgeCapabilities, SessionRunStatus, UiSessionEvent, WorkerStatus},
+    domain::{BridgeCapabilities, HostRuntimeInfo, SessionRunStatus, UiSessionEvent, WorkerStatus},
     native::{notify, tray},
     protocol::BackendEvent,
     state::AppState,
@@ -54,6 +54,12 @@ pub fn run() {
         .manage(tray::ExitRequested::default())
         .invoke_handler(tauri::generate_handler![
             commands::get_app_state,
+            commands::get_host_info,
+            commands::list_plugins,
+            commands::set_plugin_bundle_enabled,
+            commands::set_plugin_entry_enabled,
+            commands::install_plugin_bundle,
+            commands::remove_plugin_bundle,
             commands::list_workspaces,
             commands::refresh_sessions,
             commands::load_session_history,
@@ -124,6 +130,10 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
                     if let Err(error) = app.emit("dsh://bridge-capabilities", capabilities) {
                         tracing::warn!(%error, "Could not emit bridge capabilities reset");
                     }
+                    *state.host_info.write().unwrap() = None;
+                    if let Err(error) = app.emit("dsh://host-info", None::<HostRuntimeInfo>) {
+                        tracing::warn!(%error, "Could not emit host information reset");
+                    }
                     for session in state.sessions.write().unwrap().iter_mut() {
                         session.status = SessionRunStatus::Idle;
                     }
@@ -133,6 +143,10 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
             BackendEvent::BridgeCapabilities(capabilities) => {
                 *state.bridge_capabilities.write().unwrap() = capabilities;
                 app.emit("dsh://bridge-capabilities", capabilities)
+            }
+            BackendEvent::HostInfo(info) => {
+                *state.host_info.write().unwrap() = info.clone();
+                app.emit("dsh://host-info", info)
             }
             BackendEvent::StreamDelta(event) => app.emit("dsh://stream-delta", event),
             BackendEvent::SessionStatus { session_id, status } => {

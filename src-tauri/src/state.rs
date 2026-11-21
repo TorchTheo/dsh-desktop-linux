@@ -14,8 +14,8 @@ use uuid::Uuid;
 use crate::{
     config::AppConfig,
     domain::{
-        AppStateSnapshot, BridgeCapabilities, SessionRunStatus, SessionSummary, WorkerStatus,
-        WorkspaceSummary,
+        AppStateSnapshot, BridgeCapabilities, HostRuntimeInfo, SessionRunStatus, SessionSummary,
+        WorkerStatus, WorkspaceSummary,
     },
     protocol::{sdk_adapter::SdkAdapter, BackendEvent},
     storage,
@@ -25,6 +25,7 @@ pub(crate) struct AppState {
     pub config: RwLock<AppConfig>,
     pub worker_status: RwLock<WorkerStatus>,
     pub bridge_capabilities: RwLock<BridgeCapabilities>,
+    pub host_info: RwLock<Option<HostRuntimeInfo>>,
     pub sessions: RwLock<Vec<SessionSummary>>,
     pub workspaces: RwLock<Vec<WorkspaceSummary>>,
     pub active_worker_sessions: RwLock<HashSet<String>>,
@@ -49,6 +50,7 @@ impl AppState {
             config: RwLock::new(config),
             worker_status: RwLock::new(WorkerStatus::Idle),
             bridge_capabilities: RwLock::new(BridgeCapabilities::default()),
+            host_info: RwLock::new(None),
             sessions: RwLock::new(sessions),
             workspaces: RwLock::new(workspaces),
             active_worker_sessions: RwLock::new(HashSet::new()),
@@ -74,6 +76,7 @@ impl AppState {
             config: self.config.read().unwrap().clone(),
             worker_status: self.worker_status.read().unwrap().clone(),
             bridge_capabilities: *self.bridge_capabilities.read().unwrap(),
+            host_info: self.host_info.read().unwrap().clone(),
             sessions: sessions.to_vec(),
             workspaces: workspaces.to_vec(),
         }

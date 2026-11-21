@@ -62,6 +62,8 @@ pub struct AppStateSnapshot {
     pub worker_status: WorkerStatus,
     #[serde(default)]
     pub bridge_capabilities: BridgeCapabilities,
+    #[serde(default)]
+    pub host_info: Option<HostRuntimeInfo>,
     pub sessions: Vec<SessionSummary>,
     #[serde(default)]
     pub workspaces: Vec<WorkspaceSummary>,
@@ -73,6 +75,43 @@ pub struct BridgeCapabilities {
     pub stream_delta: bool,
     pub abort: bool,
     pub model_control: bool,
+    #[serde(default)]
+    pub host_info: bool,
+    #[serde(default)]
+    pub plugin_manager: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostRuntimeInfo {
+    pub web_origin: Option<String>,
+    pub authenticated_url: Option<String>,
+    pub profile: Option<String>,
+    pub has_web_server: bool,
+    pub has_plugin_manager: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginEntryInfo {
+    pub row_id: String,
+    pub module_name: String,
+    pub entry_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginBundleInfo {
+    pub name: String,
+    pub enabled: bool,
+    pub installed: bool,
+    pub removable: bool,
+    pub availability: String,
+    pub description: Option<String>,
+    pub version: Option<String>,
+    pub source: Option<String>,
+    pub error: Option<String>,
+    pub entries: Vec<PluginEntryInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -302,6 +341,7 @@ mod tests {
         }))
         .unwrap();
         assert!(snapshot.workspaces.is_empty());
+        assert!(snapshot.host_info.is_none());
         assert_eq!(snapshot.bridge_capabilities, BridgeCapabilities::default());
         let session = &snapshot.sessions[0];
         assert!(!session.pinned && !session.archived && !session.persisted);
