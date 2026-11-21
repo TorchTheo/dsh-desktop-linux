@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import type { SubagentEvent, UiMessage } from '../types/domain'
 
 type FilterKind = 'all' | 'thinking' | 'tool' | 'subagent' | 'error'
 
-interface TraceNode {
+interface TraceStep {
   id: string
-  indexLabel: string
-  kind: 'turn' | 'thinking' | 'tool' | 'response' | 'subagent' | 'error'
+  stepLabel: string
+  kind: 'thinking' | 'tool' | 'response' | 'subagent' | 'error'
+  category: string
   title: string
   summary: string
   timestamp: number
@@ -17,6 +18,29 @@ interface TraceNode {
   input?: unknown
   output?: unknown
   textBody?: string
+}
+
+interface TraceTurn {
+  turnNumber: number
+  id: string
+  promptPreview: string
+  promptFull: string
+  timestamp: number
+  endTimestamp: number
+  steps: TraceStep[]
+  activityCounts: [string, number][]
+  hasError: boolean
+}
+
+function classifyTool(name: string): string {
+  const lower = name.toLowerCase()
+  if (lower.includes('read') || lower.includes('view')) return '读取'
+  if (lower.includes('search') || lower.includes('grep') || lower.includes('find')) return '搜索'
+  if (lower.includes('edit') || lower.includes('replace') || lower.includes('write')) return '编辑'
+  if (lower.includes('bash') || lower.includes('shell') || lower.includes('cmd') || lower.includes('terminal')) return '命令'
+  if (lower.includes('web') || lower.includes('fetch')) return '网络'
+  if (lower.includes('subagent') || lower.includes('agent')) return '子代理'
+  return '工具'
 }
 
 function stringifyPretty(value: unknown): string {
@@ -29,7 +53,7 @@ function stringifyPretty(value: unknown): string {
   }
 }
 
-function summarizeText(text: string, max = 96): string {
+function summarizeText(text: string, max = 88): string {
   const oneLine = text.replace(/\s+/g, ' ').trim()
   return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine
 }
@@ -40,7 +64,16 @@ function formatClock(ms: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
 
-function buildTraceNodes(messages: UiMessage[], subagents: SubagentEvent[]): TraceNode[] {
+function formatDuration(startMs: number, endMs: number): string {
+  if (!startMs || !endMs || endMs <= startMs) return ''
+  const secs = (endMs - startMs) / 1000
+  if (secs < 60) return `${secs.toFixed(1)} 秒`
+  const mins = Math.floor(secs / 60)
+  const rem = Math.round(secs % 60)
+  return `${mins} 分 ${rem} 秒`
+}
+
+function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTurn[] {
   const resultByCallId = new Map<string, { content: unknown; isError: boolean }>()
   for (const msg of messages) {
     for (const block of msg.blocks) {
@@ -53,43 +86,69 @@ function buildTraceNodes(messages: UiMessage[], subagents: SubagentEvent[]): Tra
     }
   }
 
-  const nodes: TraceNode[] = []
-  let turn = 0
-  let step = 0
+  const turns: TraceTurn[] = []
+  let current: TraceTurn | null = null
   const pad = (n: number) => String(n).padStart(2, '0')
+
+  const ensureTurn = (timestamp: number): TraceTurn => {
+    if (!current) {
+      const turnNumber = turns.length + 1
+      current = {
+        turnNumber,
+        id: `turn-${turnNumber}`,
+        promptPreview: '（系统或续聊回合）',
+        promptFull: '',
+        timestamp,
+        endTimestamp: timestamp,
+        steps: [],
+        activityCounts: [],
+        hasError: false,
+      }
+      turns.push(current)
+    }
+    return current
+  }
 
   for (const msg of messages) {
     if (msg.role === 'user') {
-      turn += 1
-      step = 0
       const text = msg.blocks
         .filter((b) => b.type === 'text')
         .map((b) => b.text)
         .join('\n')
-      nodes.push({
+      const turnNumber = turns.length + 1
+      current = {
+        turnNumber,
         id: `turn-${msg.id}`,
-        indexLabel: `T${pad(turn)}`,
-        kind: 'turn',
-        title: `Turn ${pad(turn)} · User Prompt`,
-        summary: summarizeText(text || '[Image Attachment]'),
+        promptPreview: summarizeText(text || '（图片消息）', 72),
+        promptFull: text,
         timestamp: msg.timestamp,
-        textBody: text,
-      })
+        endTimestamp: msg.timestamp,
+        steps: [],
+        activityCounts: [],
+        hasError: false,
+      }
+      turns.push(current)
       continue
     }
 
+    const turn = ensureTurn(msg.timestamp)
+    if (msg.timestamp > turn.endTimestamp) {
+      turn.endTimestamp = msg.timestamp
+    }
+
     if (msg.isError || msg.role === 'system') {
-      step += 1
       const text = msg.blocks
         .filter((b) => b.type === 'text')
         .map((b) => b.text)
         .join('\n')
-      nodes.push({
+      turn.hasError = true
+      turn.steps.push({
         id: `err-${msg.id}`,
-        indexLabel: `T${pad(Math.max(1, turn))}.S${pad(step)}`,
+        stepLabel: `步 ${pad(turn.steps.length + 1)}`,
         kind: 'error',
-        title: 'Runtime Error',
-        summary: summarizeText(text || 'Execution attempt failed'),
+        category: '错误',
+        title: '执行异常',
+        summary: summarizeText(text || '请求或工具调用失败'),
         timestamp: msg.timestamp,
         status: 'error',
         textBody: text,
@@ -100,39 +159,41 @@ function buildTraceNodes(messages: UiMessage[], subagents: SubagentEvent[]): Tra
     for (let i = 0; i < msg.blocks.length; i += 1) {
       const block = msg.blocks[i]
       if (block.type === 'thinking') {
-        step += 1
-        nodes.push({
+        turn.steps.push({
           id: `${msg.id}-think-${i}`,
-          indexLabel: `T${pad(Math.max(1, turn))}.S${pad(step)}`,
+          stepLabel: `步 ${pad(turn.steps.length + 1)}`,
           kind: 'thinking',
-          title: 'Reasoning / Thinking',
+          category: '思考',
+          title: '推理思考',
           summary: summarizeText(block.thinking),
           timestamp: msg.timestamp,
           textBody: block.thinking,
         })
       } else if (block.type === 'toolUse') {
-        step += 1
         const matched = resultByCallId.get(block.id)
-        const inputStr = stringifyPretty(block.input)
-        nodes.push({
+        const cat = classifyTool(block.name)
+        const isErr = Boolean(matched?.isError)
+        if (isErr) turn.hasError = true
+        turn.steps.push({
           id: `${msg.id}-tool-${block.id}-${i}`,
-          indexLabel: `T${pad(Math.max(1, turn))}.S${pad(step)}`,
+          stepLabel: `步 ${pad(turn.steps.length + 1)}`,
           kind: 'tool',
-          title: block.name,
-          summary: summarizeText(inputStr || '(no arguments)'),
+          category: cat,
+          title: `${cat} · ${block.name}`,
+          summary: summarizeText(stringifyPretty(block.input) || '无参数'),
           timestamp: msg.timestamp,
           callId: block.id,
-          status: matched ? (matched.isError ? 'error' : 'ok') : 'running',
+          status: matched ? (isErr ? 'error' : 'ok') : 'running',
           input: block.input,
           output: matched?.content,
         })
       } else if (block.type === 'text' && block.text.trim()) {
-        step += 1
-        nodes.push({
+        turn.steps.push({
           id: `${msg.id}-text-${i}`,
-          indexLabel: `T${pad(Math.max(1, turn))}.S${pad(step)}`,
+          stepLabel: `步 ${pad(turn.steps.length + 1)}`,
           kind: 'response',
-          title: 'Assistant Response',
+          category: '回复',
+          title: '助手回复',
           summary: summarizeText(block.text),
           timestamp: msg.timestamp,
           status: 'ok',
@@ -142,37 +203,48 @@ function buildTraceNodes(messages: UiMessage[], subagents: SubagentEvent[]): Tra
     }
   }
 
-  for (const sa of subagents) {
-    nodes.push({
-      id: `subagent-${sa.childSessionId}`,
-      indexLabel: 'SUB',
-      kind: 'subagent',
-      title: `Subagent · ${sa.childSessionId.slice(0, 10)}`,
-      summary: sa.stopReason
-        ? `${sa.status ?? sa.kind} · ${sa.stopReason}`
-        : `status: ${sa.status ?? sa.kind}`,
-      timestamp: Date.now(),
-      status: sa.kind === 'started' ? 'running' : sa.status === 'ok' ? 'ok' : 'error',
-      input: sa,
-    })
+  if (subagents.length > 0) {
+    const target = ensureTurn(Date.now())
+    for (const sa of subagents) {
+      target.steps.push({
+        id: `subagent-${sa.childSessionId}`,
+        stepLabel: '子代理',
+        kind: 'subagent',
+        category: '子代理',
+        title: `子代理 · ${sa.childSessionId.slice(0, 8)}`,
+        summary: sa.stopReason
+          ? `状态：${sa.status ?? sa.kind} · 原因：${sa.stopReason}`
+          : `状态：${sa.kind === 'started' ? '运行中' : (sa.status ?? sa.kind)}`,
+        timestamp: Date.now(),
+        status: sa.kind === 'started' ? 'running' : sa.status === 'ok' ? 'ok' : 'error',
+        input: sa,
+      })
+    }
   }
 
-  return nodes
+  for (const turn of turns) {
+    const counts = new Map<string, number>()
+    for (const step of turn.steps) {
+      if (step.kind === 'response') continue
+      counts.set(step.category, (counts.get(step.category) ?? 0) + 1)
+    }
+    turn.activityCounts = Array.from(counts.entries())
+  }
+
+  return turns
 }
 
-function NodeGlyph({ node }: { node: TraceNode }) {
-  switch (node.kind) {
-    case 'turn':
-      return <span className="h-2.5 w-2.5 rounded-full bg-[#141413]" />
+function StepGlyph({ step }: { step: TraceStep }) {
+  switch (step.kind) {
     case 'thinking':
       return <span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-[#1E4D9B] bg-[#FAF9F5]" />
     case 'tool':
       return (
         <span
           className={`h-2.5 w-2.5 ${
-            node.status === 'error'
+            step.status === 'error'
               ? 'bg-[#D13B27]'
-              : node.status === 'ok'
+              : step.status === 'ok'
                 ? 'bg-[#246A4D]'
                 : 'bg-[#C4881C] animate-pulse'
           }`}
@@ -183,7 +255,7 @@ function NodeGlyph({ node }: { node: TraceNode }) {
     case 'error':
       return <span className="h-2.5 w-2.5 bg-[#D13B27]" />
     case 'response':
-      return <span className="h-2.5 w-2.5 rounded-full bg-[#246A4D]" />
+      return <span className="h-2.5 w-2.5 rounded-full bg-[#141413]" />
   }
 }
 
@@ -193,34 +265,46 @@ export function TrajectoryView() {
   const subagentsBySession = useAppStore((s) => s.subagentsBySession)
 
   const [filter, setFilter] = useState<FilterKind>('all')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
+  const [collapsedTurns, setCollapsedTurns] = useState<Record<string, boolean>>({})
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : []
   const subagents = activeSessionId ? (subagentsBySession[activeSessionId] ?? []) : []
 
-  const allNodes = useMemo(() => buildTraceNodes(messages, subagents), [messages, subagents])
+  const allTurns = useMemo(() => buildTurns(messages, subagents), [messages, subagents])
+
+  const allSteps = useMemo(() => allTurns.flatMap((t) => t.steps), [allTurns])
 
   const counts = useMemo(
     () => ({
-      all: allNodes.length,
-      thinking: allNodes.filter((n) => n.kind === 'thinking').length,
-      tool: allNodes.filter((n) => n.kind === 'tool').length,
-      subagent: allNodes.filter((n) => n.kind === 'subagent').length,
-      error: allNodes.filter((n) => n.kind === 'error' || n.status === 'error').length,
-      turns: allNodes.filter((n) => n.kind === 'turn').length,
+      all: allSteps.length,
+      thinking: allSteps.filter((s) => s.kind === 'thinking').length,
+      tool: allSteps.filter((s) => s.kind === 'tool').length,
+      subagent: allSteps.filter((s) => s.kind === 'subagent').length,
+      error: allSteps.filter((s) => s.kind === 'error' || s.status === 'error').length,
     }),
-    [allNodes],
+    [allSteps],
   )
 
-  const visibleNodes = useMemo(() => {
-    if (filter === 'all') return allNodes
-    if (filter === 'error') return allNodes.filter((n) => n.kind === 'error' || n.status === 'error')
-    return allNodes.filter((n) => n.kind === filter)
-  }, [allNodes, filter])
+  const filteredTurns = useMemo(() => {
+    if (filter === 'all') return allTurns
+    return allTurns
+      .map((turn) => ({
+        ...turn,
+        steps: turn.steps.filter((s) =>
+          filter === 'error' ? s.kind === 'error' || s.status === 'error' : s.kind === filter,
+        ),
+      }))
+      .filter((turn) => turn.steps.length > 0)
+  }, [allTurns, filter])
 
-  const selectedNode =
-    visibleNodes.find((n) => n.id === selectedId) ?? visibleNodes[visibleNodes.length - 1] ?? null
+  const visibleSteps = useMemo(() => filteredTurns.flatMap((t) => t.steps), [filteredTurns])
+
+  const selectedStep =
+    visibleSteps.find((s) => s.id === selectedStepId) ??
+    visibleSteps[visibleSteps.length - 1] ??
+    null
 
   const copyText = (key: string, value: string) => {
     void navigator.clipboard?.writeText(value)
@@ -228,18 +312,33 @@ export function TrajectoryView() {
     window.setTimeout(() => setCopiedField(null), 1400)
   }
 
+  const toggleAllTurns = (collapse: boolean) => {
+    const next: Record<string, boolean> = {}
+    for (const turn of allTurns) {
+      next[turn.id] = collapse
+    }
+    setCollapsedTurns(next)
+  }
+
   const filterTabs: { id: FilterKind; label: string; count: number }[] = [
-    { id: 'all', label: '全部', count: counts.all },
+    { id: 'all', label: '全部步骤', count: counts.all },
     { id: 'thinking', label: '思考', count: counts.thinking },
     { id: 'tool', label: '工具调用', count: counts.tool },
     { id: 'subagent', label: '子代理', count: counts.subagent },
     { id: 'error', label: '错误', count: counts.error },
   ]
 
+  const statusText = (status?: 'ok' | 'error' | 'running') => {
+    if (status === 'ok') return '成功'
+    if (status === 'error') return '失败'
+    if (status === 'running') return '执行中'
+    return ''
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#F4F3EE]">
-      {/* Filter & Telemetry Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D8D5CB] bg-[#FAF9F5]/80 px-5 py-2">
+      {/* 过滤与汇总栏 */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D8D5CB] bg-[#FAF9F5]/85 px-5 py-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {filterTabs.map((tab) => {
             const active = filter === tab.id
@@ -248,194 +347,281 @@ export function TrajectoryView() {
                 key={tab.id}
                 type="button"
                 onClick={() => setFilter(tab.id)}
-                className={`font-mono-tabular inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-medium transition ${
+                className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition ${
                   active
                     ? 'bg-[#141413] text-[#FAF9F5]'
                     : 'bg-[#ECEAE2] text-[#575652] hover:bg-[#E5E2D8] hover:text-[#141413]'
                 }`}
               >
                 <span>{tab.label}</span>
-                <span className={active ? 'text-[#FAF9F5]/70' : 'text-[#8A8880]'}>{tab.count}</span>
+                <span className={`font-mono-tabular ${active ? 'text-[#FAF9F5]/75' : 'text-[#8A8880]'}`}>
+                  {tab.count}
+                </span>
               </button>
             )
           })}
         </div>
 
-        <div className="font-mono-tabular text-[11px] uppercase tracking-wider text-[#575652]">
-          {counts.turns} TURNS · {counts.tool} TOOLS · {counts.error} ERRORS
+        <div className="flex items-center gap-3 text-xs text-[#575652]">
+          <span className="font-mono-tabular">
+            共 {allTurns.length} 回合 · {counts.tool} 次工具 · {counts.error} 个错误
+          </span>
+          {allTurns.length > 0 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => toggleAllTurns(false)}
+                className="rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2 py-0.5 text-[11px] hover:border-[#141413] hover:text-[#141413]"
+              >
+                全部展开
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleAllTurns(true)}
+                className="rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2 py-0.5 text-[11px] hover:border-[#141413] hover:text-[#141413]"
+              >
+                全部折叠
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {visibleNodes.length === 0 ? (
+      {filteredTurns.length === 0 ? (
         <div className="bauhaus-dot-grid flex flex-1 flex-col items-center justify-center px-6 text-center">
           <div className="rounded-lg border border-[#D8D5CB] bg-[#FAF9F5] px-8 py-6">
-            <div className="font-mono-tabular text-xs font-semibold uppercase tracking-[0.12em] text-[#575652]">
-              No Trajectory Events
-            </div>
+            <div className="text-sm font-semibold text-[#141413]">暂无执行轨迹</div>
             <p className="mt-1.5 text-xs text-[#8A8880]">
-              当前会话尚无匹配的执行轨迹节点，请先在 Studio 视图发送指令。
+              当前会话尚无匹配的执行步骤，请先在「对话」视图发送指令。
             </p>
           </div>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-4 p-4">
-          {/* Left 60%: Vertical Architectural Timeline */}
-          <div className="min-w-0 flex-[3] overflow-y-auto pr-1">
-            <div className="relative pl-6">
-              <div className="pointer-events-none absolute bottom-3 left-[11px] top-3 w-px bg-[#D8D5CB]" />
-              <ul className="space-y-1.5">
-                {visibleNodes.map((node) => {
-                  const selected = selectedNode?.id === node.id
-                  return (
-                    <li key={node.id} className="relative">
-                      <span className="pointer-events-none absolute -left-[18px] top-3.5 flex h-3 w-3 items-center justify-center">
-                        <NodeGlyph node={node} />
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedId(node.id)}
-                        className={`relative flex w-full items-center justify-between gap-3 rounded-md border px-3.5 py-2.5 text-left transition ${
-                          selected
-                            ? 'border-[#1E4D9B] border-l-[3px] bg-[#FAF9F5] text-[#141413]'
-                            : 'border-[#D8D5CB] bg-[#FAF9F5]/65 text-[#141413] hover:border-[#8A8880] hover:bg-[#FAF9F5]'
-                        }`}
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span className="font-mono-tabular w-14 shrink-0 text-[11px] font-semibold text-[#8A8880]">
-                            {node.indexLabel}
+          {/* 左 60%：按回合分组的 dsh web 风格执行轨迹 */}
+          <div className="min-w-0 flex-[3] space-y-3 overflow-y-auto pr-1">
+            {filteredTurns.map((turn) => {
+              const collapsed = Boolean(collapsedTurns[turn.id])
+              const duration = formatDuration(turn.timestamp, turn.endTimestamp)
+              return (
+                <section
+                  key={turn.id}
+                  className="overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCollapsedTurns((prev) => ({ ...prev, [turn.id]: !prev[turn.id] }))
+                    }
+                    className="flex w-full items-start justify-between gap-3 bg-[#ECEAE2]/55 px-3.5 py-2.5 text-left transition hover:bg-[#ECEAE2]"
+                  >
+                    <div className="flex min-w-0 items-start gap-2">
+                      {collapsed ? (
+                        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#575652]" />
+                      ) : (
+                        <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-[#575652]" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono-tabular rounded bg-[#141413] px-1.5 py-0.5 text-[10px] font-semibold text-[#FAF9F5]">
+                            第 {String(turn.turnNumber).padStart(2, '0')} 回合
                           </span>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="truncate text-xs font-semibold text-[#141413]">
-                                {node.title}
+                          <span className="truncate text-xs font-semibold text-[#141413]">
+                            {turn.promptPreview}
+                          </span>
+                        </div>
+                        {turn.activityCounts.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {turn.activityCounts.map(([cat, cnt]) => (
+                              <span
+                                key={cat}
+                                className="font-mono-tabular rounded border border-[#D8D5CB] bg-[#FAF9F5] px-1.5 py-0.5 text-[10px] text-[#575652]"
+                              >
+                                {cat} ×{cnt}
                               </span>
-                              {node.status && (
-                                <span
-                                  className={`font-mono-tabular rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
-                                    node.status === 'error'
-                                      ? 'bg-[#D13B27]/12 text-[#D13B27]'
-                                      : node.status === 'ok'
-                                        ? 'bg-[#246A4D]/12 text-[#246A4D]'
-                                        : 'bg-[#C4881C]/15 text-[#8E6210]'
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="font-mono-tabular shrink-0 text-right text-[10px] text-[#8A8880]">
+                      <div>{formatClock(turn.timestamp)}</div>
+                      {duration && <div className="mt-0.5 text-[#575652]">耗时 {duration}</div>}
+                    </div>
+                  </button>
+
+                  {!collapsed && (
+                    <div className="border-t border-[#D8D5CB] bg-[#F4F3EE]/50 px-3.5 py-2.5">
+                      <div className="relative pl-5">
+                        <div className="pointer-events-none absolute bottom-2 left-[7px] top-2 w-px bg-[#D8D5CB]" />
+                        <ul className="space-y-1.5">
+                          {turn.steps.map((step) => {
+                            const selected = selectedStep?.id === step.id
+                            return (
+                              <li key={step.id} className="relative">
+                                <span className="pointer-events-none absolute -left-[18px] top-3 flex h-3 w-3 items-center justify-center">
+                                  <StepGlyph step={step} />
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedStepId(step.id)}
+                                  className={`flex w-full items-center justify-between gap-3 rounded border px-3 py-2 text-left transition ${
+                                    selected
+                                      ? 'border-[#1E4D9B] border-l-[3px] bg-[#FAF9F5]'
+                                      : 'border-[#D8D5CB] bg-[#FAF9F5]/80 hover:border-[#8A8880] hover:bg-[#FAF9F5]'
                                   }`}
                                 >
-                                  {node.status}
-                                </span>
-                              )}
-                            </div>
-                            <p className="mt-0.5 truncate text-[11px] text-[#575652]">
-                              {node.summary}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="font-mono-tabular shrink-0 text-[10px] text-[#8A8880]">
-                          {formatClock(node.timestamp)}
-                        </span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
+                                  <div className="flex min-w-0 items-center gap-2.5">
+                                    <span className="font-mono-tabular w-11 shrink-0 text-[10px] font-semibold text-[#8A8880]">
+                                      {step.stepLabel}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="truncate text-xs font-semibold text-[#141413]">
+                                          {step.title}
+                                        </span>
+                                        {step.status && (
+                                          <span
+                                            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                              step.status === 'error'
+                                                ? 'bg-[#D13B27]/12 text-[#D13B27]'
+                                                : step.status === 'ok'
+                                                  ? 'bg-[#246A4D]/12 text-[#246A4D]'
+                                                  : 'bg-[#C4881C]/15 text-[#8E6210]'
+                                            }`}
+                                          >
+                                            {statusText(step.status)}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="mt-0.5 truncate text-[11px] text-[#575652]">
+                                        {step.summary}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <span className="font-mono-tabular shrink-0 text-[10px] text-[#8A8880]">
+                                    {formatClock(step.timestamp)}
+                                  </span>
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )
+            })}
           </div>
 
-          {/* Right 40%: Step Detail Inspector */}
+          {/* 右 40%：步骤详情检查器 */}
           <div className="flex min-w-0 flex-[2] flex-col overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]">
-            {selectedNode ? (
+            {selectedStep ? (
               <>
-                <div className="flex items-center justify-between border-b border-[#D8D5CB] px-4 py-3">
+                <div className="flex items-center justify-between border-b border-[#D8D5CB] bg-[#F4F3EE]/70 px-4 py-3">
                   <div className="min-w-0">
-                    <div className="font-mono-tabular text-[10px] font-semibold uppercase tracking-[0.12em] text-[#1E4D9B]">
-                      {selectedNode.indexLabel} · {selectedNode.kind}
+                    <div className="text-[11px] font-semibold text-[#1E4D9B]">
+                      {selectedStep.stepLabel} · {selectedStep.category}
                     </div>
                     <h3 className="truncate text-sm font-semibold text-[#141413]">
-                      {selectedNode.title}
+                      {selectedStep.title}
                     </h3>
                   </div>
-                  <span className="font-mono-tabular text-[10px] text-[#8A8880]">
-                    {formatClock(selectedNode.timestamp)}
+                  <span className="font-mono-tabular text-[11px] text-[#8A8880]">
+                    {formatClock(selectedStep.timestamp)}
                   </span>
                 </div>
 
                 <div className="flex-1 space-y-4 overflow-y-auto p-4 text-xs">
-                  {selectedNode.callId && (
+                  {selectedStep.callId && (
                     <div className="font-mono-tabular flex items-center justify-between rounded border border-[#D8D5CB] bg-[#F4F3EE] px-3 py-1.5 text-[11px]">
-                      <span className="text-[#8A8880]">CALL_ID</span>
-                      <span className="text-[#141413]">{selectedNode.callId}</span>
+                      <span className="text-[#8A8880]">调用编号</span>
+                      <span className="text-[#141413]">{selectedStep.callId}</span>
                     </div>
                   )}
 
-                  {selectedNode.input !== undefined && (
+                  {selectedStep.input !== undefined && (
                     <section className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-[0.12em] text-[#575652]">
-                          Input Payload
-                        </span>
+                        <span className="text-[11px] font-semibold text-[#575652]">输入参数</span>
                         <button
                           type="button"
-                          onClick={() => copyText('input', stringifyPretty(selectedNode.input))}
-                          className="inline-flex items-center gap-1 text-[10px] text-[#575652] hover:text-[#1E4D9B]"
+                          onClick={() => copyText('input', stringifyPretty(selectedStep.input))}
+                          className="inline-flex items-center gap-1 text-[11px] text-[#575652] hover:text-[#1E4D9B]"
                         >
                           {copiedField === 'input' ? (
-                            <Check className="h-3 w-3 text-[#246A4D]" />
+                            <>
+                              <Check className="h-3 w-3 text-[#246A4D]" />
+                              已复制
+                            </>
                           ) : (
-                            <Copy className="h-3 w-3" />
+                            <>
+                              <Copy className="h-3 w-3" />
+                              复制
+                            </>
                           )}
-                          复制
                         </button>
                       </div>
                       <pre className="font-mono-tabular max-h-64 overflow-auto rounded border border-[#D8D5CB] bg-[#ECEAE2] p-3 text-[11px] whitespace-pre-wrap text-[#141413]">
-                        {stringifyPretty(selectedNode.input)}
+                        {stringifyPretty(selectedStep.input)}
                       </pre>
                     </section>
                   )}
 
-                  {selectedNode.output !== undefined && (
+                  {selectedStep.output !== undefined && (
                     <section className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-[0.12em] text-[#575652]">
-                          Output / Result
-                        </span>
+                        <span className="text-[11px] font-semibold text-[#575652]">输出结果</span>
                         <button
                           type="button"
-                          onClick={() => copyText('output', stringifyPretty(selectedNode.output))}
-                          className="inline-flex items-center gap-1 text-[10px] text-[#575652] hover:text-[#1E4D9B]"
+                          onClick={() => copyText('output', stringifyPretty(selectedStep.output))}
+                          className="inline-flex items-center gap-1 text-[11px] text-[#575652] hover:text-[#1E4D9B]"
                         >
                           {copiedField === 'output' ? (
-                            <Check className="h-3 w-3 text-[#246A4D]" />
+                            <>
+                              <Check className="h-3 w-3 text-[#246A4D]" />
+                              已复制
+                            </>
                           ) : (
-                            <Copy className="h-3 w-3" />
+                            <>
+                              <Copy className="h-3 w-3" />
+                              复制
+                            </>
                           )}
-                          复制
                         </button>
                       </div>
                       <pre className="font-mono-tabular max-h-80 overflow-auto rounded border border-[#D8D5CB] bg-[#ECEAE2] p-3 text-[11px] whitespace-pre-wrap text-[#141413]">
-                        {stringifyPretty(selectedNode.output)}
+                        {stringifyPretty(selectedStep.output)}
                       </pre>
                     </section>
                   )}
 
-                  {selectedNode.textBody !== undefined && (
+                  {selectedStep.textBody !== undefined && (
                     <section className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-[0.12em] text-[#575652]">
-                          Content
-                        </span>
+                        <span className="text-[11px] font-semibold text-[#575652]">完整内容</span>
                         <button
                           type="button"
-                          onClick={() => copyText('body', selectedNode.textBody ?? '')}
-                          className="inline-flex items-center gap-1 text-[10px] text-[#575652] hover:text-[#1E4D9B]"
+                          onClick={() => copyText('body', selectedStep.textBody ?? '')}
+                          className="inline-flex items-center gap-1 text-[11px] text-[#575652] hover:text-[#1E4D9B]"
                         >
                           {copiedField === 'body' ? (
-                            <Check className="h-3 w-3 text-[#246A4D]" />
+                            <>
+                              <Check className="h-3 w-3 text-[#246A4D]" />
+                              已复制
+                            </>
                           ) : (
-                            <Copy className="h-3 w-3" />
+                            <>
+                              <Copy className="h-3 w-3" />
+                              复制
+                            </>
                           )}
-                          复制
                         </button>
                       </div>
                       <div className="max-h-96 overflow-auto rounded border border-[#D8D5CB] bg-[#F4F3EE] p-3 text-xs leading-relaxed whitespace-pre-wrap text-[#141413]">
-                        {selectedNode.textBody}
+                        {selectedStep.textBody}
                       </div>
                     </section>
                   )}
