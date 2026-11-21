@@ -10,8 +10,8 @@ use crate::{
     config::AppConfig,
     domain::{
         AppStateSnapshot, ApprovalOutcome, ImageAttachment, ProviderModels, RewindResult,
-        SessionModelSelection, SessionRunStatus, SessionSummary, UiSessionDetail, WorkerStatus,
-        WorkspaceSummary,
+        SessionModelSelection, SessionPermission, SessionRunStatus, SessionSummary,
+        UiSessionDetail, WorkerStatus, WorkspaceSummary,
     },
     state::AppState,
     storage::{self, snapshot},
@@ -190,6 +190,17 @@ pub(crate) async fn set_session_model(
     adapter
         .set_session_model(&session_id, &provider, &model, reasoning_effort.as_deref())
         .await
+}
+
+#[tauri::command]
+pub(crate) async fn set_session_permission(
+    state: State<'_, AppState>,
+    session_id: String,
+    mode: String,
+) -> Result<SessionPermission, String> {
+    let adapter = state.sdk().await?;
+    state.ensure_session_resumed(&adapter, &session_id).await?;
+    adapter.set_session_permission(&session_id, &mode).await
 }
 
 #[tauri::command]

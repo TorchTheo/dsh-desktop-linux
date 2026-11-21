@@ -26,9 +26,9 @@ use crate::{
     config::AppConfig,
     domain::{
         ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities, ImageAttachment, ProviderModels,
-        SessionModelSelection, SessionRunStatus, SessionTelemetry, SessionTelemetryEvent,
-        StreamDeltaEvent, SubagentEvent, UiContentBlock, UiMessage, UiSessionEvent,
-        UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
+        SessionModelSelection, SessionPermission, SessionRunStatus, SessionTelemetry,
+        SessionTelemetryEvent, StreamDeltaEvent, SubagentEvent, UiContentBlock, UiMessage,
+        UiSessionEvent, UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
     },
 };
 
@@ -223,6 +223,22 @@ impl SdkAdapter {
                 "model": model,
                 "reasoningEffort": reasoning_effort,
             }),
+        )
+        .await
+    }
+
+    pub async fn set_session_permission(
+        &self,
+        session_id: &str,
+        mode: &str,
+    ) -> Result<SessionPermission, String> {
+        if !matches!(mode, "read-only" | "workspace-write" | "danger-full-access") {
+            return Err("mode must be read-only, workspace-write, or danger-full-access".into());
+        }
+
+        self.bridge_rpc(
+            "desktop/session/set-permission",
+            json!({"sessionId": session_id, "mode": mode}),
         )
         .await
     }
@@ -1223,9 +1239,19 @@ printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"aborted":true}}'
 IFS= read -r abort
 test "$abort" = '{"id":7,"jsonrpc":"2.0","method":"desktop/session/abort","params":{"sessionId":"s"}}'
 printf '%s\n' '{"jsonrpc":"2.0","id":7,"result":{"aborted":false}}'
+id=8
+for mode in read-only workspace-write danger-full-access; do
+    policy=ask
+    if [ "$mode" = danger-full-access ]; then policy=never; fi
+    IFS= read -r permission
+    expected=$(printf '{"id":%s,"jsonrpc":"2.0","method":"desktop/session/set-permission","params":{"mode":"%s","sessionId":"s"}}' "$id" "$mode")
+    test "$permission" = "$expected"
+    printf '{"jsonrpc":"2.0","id":%s,"result":{"sandboxMode":"%s","approvalPolicy":"%s"}}\n' "$id" "$mode" "$policy"
+    id=$((id + 1))
+done
 IFS= read -r shutdown
-test "$shutdown" = '{"id":8,"jsonrpc":"2.0","method":"shutdown"}'
-printf '%s\n' '{"jsonrpc":"2.0","id":8,"result":{}}'
+test "$shutdown" = '{"id":11,"jsonrpc":"2.0","method":"shutdown"}'
+printf '%s\n' '{"jsonrpc":"2.0","id":11,"result":{}}'
 "#).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
 
@@ -1299,6 +1325,25 @@ printf '%s\n' '{"jsonrpc":"2.0","id":8,"result":{}}'
             }
             assert!(adapter.abort_session("s").await.unwrap());
             assert!(!adapter.abort_session("s").await.unwrap());
+            for mode in ["", "full-access", "READ-ONLY", "read-only "] {
+                assert_eq!(
+                    adapter.set_session_permission("s", mode).await.unwrap_err(),
+                    "mode must be read-only, workspace-write, or danger-full-access"
+                );
+            }
+            for (mode, policy) in [
+                ("read-only", "ask"),
+                ("workspace-write", "ask"),
+                ("danger-full-access", "never"),
+            ] {
+                assert_eq!(
+                    adapter.set_session_permission("s", mode).await.unwrap(),
+                    SessionPermission {
+                        sandbox_mode: mode.into(),
+                        approval_policy: policy.into(),
+                    }
+                );
+            }
             adapter.shutdown().await;
         })
         .await

@@ -66,6 +66,7 @@ pub fn run() {
             commands::abort_session,
             commands::list_models,
             commands::set_session_model,
+            commands::set_session_permission,
             commands::respond_approval,
             commands::respond_user_question,
             commands::set_working_directory,

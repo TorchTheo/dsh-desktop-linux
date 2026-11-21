@@ -87,6 +87,22 @@ export function apply(ctx, config) {
         })))
         return { providers }
       }
+      case 'desktop/session/set-permission': {
+        const sessionId = requiredString(params?.sessionId, 'sessionId')
+        const mode = params.mode
+        if (mode !== 'read-only' && mode !== 'workspace-write' && mode !== 'danger-full-access') {
+          throw new TypeError('mode must be read-only, workspace-write, or danger-full-access')
+        }
+        const agent = ctx.agents.get(sessionId)
+        if (!agent) throw new Error(`no live agent for session ${sessionId}`)
+        const session = agent.session
+        if (!session) throw new Error(`no live session for agent ${sessionId}`)
+
+        const approvalPolicy = mode === 'danger-full-access' ? 'never' : 'ask'
+        session.append('sandbox/mode', { mode })
+        session.append('approval/policy', { policy: approvalPolicy })
+        return { sandboxMode: mode, approvalPolicy }
+      }
       case 'desktop/session/set-model': {
         const sessionId = requiredString(params?.sessionId, 'sessionId')
         const provider = requiredString(params.provider, 'provider')

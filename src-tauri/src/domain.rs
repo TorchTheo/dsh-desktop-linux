@@ -109,6 +109,13 @@ pub struct SessionModelSelection {
     pub reasoning_effort: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPermission {
+    pub sandbox_mode: String,
+    pub approval_policy: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageAttachment {
