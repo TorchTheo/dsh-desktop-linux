@@ -12,14 +12,28 @@ import type {
   UiSessionEvent,
   UserQuestionRequestEvent,
   WorkerStatus,
+  WorkspaceSummary,
 } from '../types/domain'
+
+export interface SessionMeta {
+  provider: string | null
+  model: string | null
+}
 
 interface AppStore {
   initialized: boolean
   config: AppConfig | null
   workerStatus: WorkerStatus
+  workspaces: WorkspaceSummary[]
   sessions: SessionSummary[]
   activeSessionId: string | null
+  selectedWorkspaceId: string | null
+  searchQuery: string
+  showArchived: boolean
+  inspectorOpen: boolean
+  loadingHistoryId: string | null
+  loadedHistoryIds: Record<string, boolean>
+  sessionMetaById: Record<string, SessionMeta>
   messagesBySession: Record<string, UiMessage[]>
   approvals: ApprovalRequestEvent[]
   questions: UserQuestionRequestEvent[]
@@ -29,8 +43,14 @@ interface AppStore {
 
   bootstrap: () => Promise<() => void>
   setSettingsOpen: (open: boolean) => void
+  setInspectorOpen: (open: boolean) => void
+  setSelectedWorkspaceId: (id: string | null) => void
+  setSearchQuery: (q: string) => void
+  setShowArchived: (show: boolean) => void
   clearError: () => void
-  selectSession: (sessionId: string) => void
+  refreshSessions: () => Promise<void>
+  selectSession: (sessionId: string) => Promise<void>
+  loadSessionHistory: (sessionId: string, force?: boolean) => Promise<void>
   createSession: (cwd?: string) => Promise<SessionSummary | null>
   sendQuery: (text: string, images?: ImageAttachment[]) => Promise<void>
   respondApproval: (requestId: string, outcome: ApprovalOutcome) => Promise<void>
@@ -45,8 +65,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   config: null,
   workerStatus: { state: 'idle' },
+  workspaces: [],
   sessions: [],
   activeSessionId: null,
+  selectedWorkspaceId: null,
+  searchQuery: '',
+  showArchived: false,
+  inspectorOpen: true,
+  loadingHistoryId: null,
+  loadedHistoryIds: {},
+  sessionMetaById: {},
   messagesBySession: {},
   approvals: [],
   questions: [],
@@ -55,8 +83,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   settingsOpen: false,
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setInspectorOpen: (open) => set({ inspectorOpen: open }),
+  setSelectedWorkspaceId: (id) => set({ selectedWorkspaceId: id }),
+  setSearchQuery: (q) => set({ searchQuery: q }),
+  setShowArchived: (show) => set({ showArchived: show }),
   clearError: () => set({ errorBanner: null }),
-  selectSession: (sessionId) => set({ activeSessionId: sessionId }),
 
   bootstrap: async () => {
     if (!api.isTauriRuntime()) {
@@ -163,13 +194,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     try {
       const snapshot = await api.getAppState()
+      const initialId = snapshot.sessions[0]?.sessionId ?? null
       set({
         initialized: true,
         config: snapshot.config,
         workerStatus: snapshot.workerStatus,
+        workspaces: snapshot.workspaces ?? [],
         sessions: snapshot.sessions,
-        activeSessionId: snapshot.sessions[0]?.sessionId ?? null,
+        activeSessionId: initialId,
       })
+      if (initialId) {
+        void get().loadSessionHistory(initialId)
+      }
     } catch (error) {
       set({
         initialized: true,
@@ -180,12 +216,75 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return unlisten
   },
 
+  refreshSessions: async () => {
+    try {
+      const snapshot = await api.refreshSessions()
+      set({
+        workspaces: snapshot.workspaces ?? [],
+        sessions: snapshot.sessions,
+        workerStatus: snapshot.workerStatus,
+        errorBanner: null,
+      })
+    } catch (error) {
+      set({ errorBanner: `刷新历史会话失败：${String(error)}` })
+    }
+  },
+
+  loadSessionHistory: async (sessionId, force = false) => {
+    const state = get()
+    if (!force && state.loadedHistoryIds[sessionId]) return
+    const target = state.sessions.find((s) => s.sessionId === sessionId)
+    if (target && !target.persisted && !force) {
+      set((s) => ({ loadedHistoryIds: { ...s.loadedHistoryIds, [sessionId]: true } }))
+      return
+    }
+    set({ loadingHistoryId: sessionId })
+    try {
+      const detail = await api.loadSessionHistory(sessionId)
+      set((s) => {
+        const existing = s.messagesBySession[sessionId] ?? []
+        const merged = detail.messages.length > 0 || existing.length === 0 ? detail.messages : existing
+        return {
+          loadingHistoryId: s.loadingHistoryId === sessionId ? null : s.loadingHistoryId,
+          loadedHistoryIds: { ...s.loadedHistoryIds, [sessionId]: true },
+          messagesBySession: { ...s.messagesBySession, [sessionId]: merged },
+          sessionMetaById: {
+            ...s.sessionMetaById,
+            [sessionId]: { provider: detail.provider, model: detail.model },
+          },
+          sessions: s.sessions.map((item) =>
+            item.sessionId === sessionId
+              ? {
+                  ...item,
+                  title: detail.session.title || item.title,
+                  cwd: detail.session.cwd || item.cwd,
+                }
+              : item,
+          ),
+        }
+      })
+    } catch (error) {
+      set((s) => ({
+        loadingHistoryId: s.loadingHistoryId === sessionId ? null : s.loadingHistoryId,
+        errorBanner: `读取历史记录失败：${String(error)}`,
+      }))
+    }
+  },
+
+  selectSession: async (sessionId) => {
+    set({ activeSessionId: sessionId })
+    await get().loadSessionHistory(sessionId)
+  },
+
   createSession: async (cwd) => {
     try {
-      const session = await api.createSession(cwd)
+      const selectedWs = get().workspaces.find((w) => w.id === get().selectedWorkspaceId)
+      const targetCwd = cwd ?? selectedWs?.path
+      const session = await api.createSession(targetCwd)
       set((state) => ({
         sessions: [session, ...state.sessions],
         activeSessionId: session.sessionId,
+        loadedHistoryIds: { ...state.loadedHistoryIds, [session.sessionId]: true },
         errorBanner: null,
       }))
       return session

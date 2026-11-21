@@ -26,12 +26,23 @@ export interface SessionSummary {
   status: SessionRunStatus
   createdAt: number
   updatedAt: number
+  pinned: boolean
+  archived: boolean
+  persisted: boolean
+}
+
+export interface WorkspaceSummary {
+  id: string
+  title: string
+  path: string
+  sessionIds: string[]
 }
 
 export interface AppStateSnapshot {
   config: AppConfig
   workerStatus: WorkerStatus
   sessions: SessionSummary[]
+  workspaces: WorkspaceSummary[]
 }
 
 export interface ImageAttachment {
@@ -54,6 +65,13 @@ export interface UiMessage {
   blocks: UiContentBlock[]
   timestamp: number
   isError: boolean
+}
+
+export interface UiSessionDetail {
+  session: SessionSummary
+  messages: UiMessage[]
+  provider: string | null
+  model: string | null
 }
 
 export type UiSessionEvent =

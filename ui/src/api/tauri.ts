@@ -9,10 +9,12 @@ import type {
   SessionStatusEvent,
   SessionSummary,
   SubagentEvent,
+  UiSessionDetail,
   UiSessionEvent,
   UserQuestionCancelledEvent,
   UserQuestionRequestEvent,
   WorkerStatus,
+  WorkspaceSummary,
 } from '../types/domain'
 
 export function isTauriRuntime(): boolean {
@@ -21,6 +23,22 @@ export function isTauriRuntime(): boolean {
 
 export async function getAppState(): Promise<AppStateSnapshot> {
   return invoke<AppStateSnapshot>('get_app_state')
+}
+
+export async function listWorkspaces(): Promise<WorkspaceSummary[]> {
+  return invoke<WorkspaceSummary[]>('list_workspaces')
+}
+
+export async function refreshSessions(): Promise<AppStateSnapshot> {
+  return invoke<AppStateSnapshot>('refresh_sessions')
+}
+
+export async function loadSessionHistory(sessionId: string): Promise<UiSessionDetail> {
+  return invoke<UiSessionDetail>('load_session_history', { sessionId })
+}
+
+export async function resumeSession(sessionId: string): Promise<SessionSummary> {
+  return invoke<SessionSummary>('resume_session', { sessionId })
 }
 
 export async function startWorker(): Promise<WorkerStatus> {
