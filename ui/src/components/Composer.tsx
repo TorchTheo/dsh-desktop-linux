@@ -5,6 +5,7 @@ import { useAppStore } from '../store/useAppStore'
 import type { ImageAttachment } from '../types/domain'
 import { ModelSelector } from './ModelSelector'
 import { PermissionSelector } from './PermissionSelector'
+import { PresetSelector } from './PresetSelector'
 
 interface SlashCommandItem {
   cmd: string
@@ -311,6 +312,7 @@ export function Composer({ centered = false }: ComposerProps) {
               </button>
 
               <ModelSelector />
+              <PresetSelector />
               <PermissionSelector />
             </div>
 

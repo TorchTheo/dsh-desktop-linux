@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import * as api from '../api/tauri'
 import type {
+  AgentPresetInfo,
   AppConfig,
   ApprovalOutcome,
   ApprovalRequestEvent,
@@ -53,6 +54,9 @@ interface AppStore {
   pluginBusyKey: string | null
   pluginRestartRequired: boolean
   providers: ProviderModels[]
+  agentPresets: AgentPresetInfo[]
+  defaultPresetId: string | null
+  sessionPresetById: Record<string, string>
   workspaces: WorkspaceSummary[]
   sessions: SessionSummary[]
   activeSessionId: string | null
@@ -93,6 +97,14 @@ interface AppStore {
   rewindToMessage: (messageId: string, restoreWorkspace: boolean, prefillText?: string) => Promise<void>
   refreshSessions: () => Promise<void>
   fetchModels: () => Promise<void>
+  fetchAgentPresets: () => Promise<void>
+  setDefaultAgentPreset: (presetId: string) => Promise<void>
+  setSessionPreset: (presetId: string) => Promise<void>
+  forkSession: (sessionId: string) => Promise<SessionSummary | null>
+  updateSessionMeta: (
+    sessionId: string,
+    meta: { title?: string; pinned?: boolean; archived?: boolean },
+  ) => Promise<void>
   fetchPlugins: () => Promise<void>
   setPluginBundleEnabled: (packageName: string, enabled: boolean) => Promise<void>
   setPluginEntryEnabled: (entryId: string, moduleName: string | null, enabled: boolean) => Promise<void>
@@ -124,6 +136,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   pluginBusyKey: null,
   pluginRestartRequired: false,
   providers: [],
+  agentPresets: [],
+  defaultPresetId: null,
+  sessionPresetById: {},
   workspaces: [],
   sessions: [],
   activeSessionId: null,
@@ -196,6 +211,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }
         if (bridgeCapabilities.pluginManager) {
           void get().fetchPlugins()
+        }
+        if (bridgeCapabilities.agentPresets) {
+          void get().fetchAgentPresets()
         }
       },
 
@@ -360,6 +378,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
       if (caps.pluginManager) {
         void get().fetchPlugins()
+      }
+      if (caps.agentPresets) {
+        void get().fetchAgentPresets()
       }
       if (initialId) {
         void get().loadSessionHistory(initialId)
@@ -693,6 +714,103 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ workerStatus, errorBanner: null, pluginRestartRequired: false })
     } catch (error) {
       set({ errorBanner: `重启后端失败：${String(error)}` })
+    }
+  },
+
+  fetchAgentPresets: async () => {
+    try {
+      const catalog = await api.listAgentPresets()
+      set({
+        agentPresets: catalog.presets ?? [],
+        defaultPresetId: catalog.defaultPresetId ?? null,
+      })
+    } catch {
+      // Ignore if preset service is unavailable
+    }
+  },
+
+  setDefaultAgentPreset: async (presetId) => {
+    try {
+      const nextDefault = await api.setDefaultAgentPreset(presetId)
+      const presetName = get().agentPresets.find((p) => p.id === nextDefault)?.name ?? nextDefault
+      set({
+        defaultPresetId: nextDefault,
+        noticeBanner: `已将默认模式设为：${presetName}`,
+        errorBanner: null,
+      })
+    } catch (error) {
+      set({ errorBanner: `设置默认模式失败：${String(error)}` })
+    }
+  },
+
+  setSessionPreset: async (presetId) => {
+    const activeId = get().activeSessionId
+    const presetName = get().agentPresets.find((p) => p.id === presetId)?.name ?? presetId
+    if (!activeId) {
+      await get().setDefaultAgentPreset(presetId)
+      return
+    }
+    try {
+      const res = await api.setSessionPreset(activeId, presetId)
+      set((state) => ({
+        sessionPresetById: {
+          ...state.sessionPresetById,
+          [res.sessionId]: res.presetId,
+        },
+        noticeBanner: `当前会话已切换至模式：${presetName}`,
+        errorBanner: null,
+      }))
+    } catch (error) {
+      // DSH only allows switching preset before first turn; fallback to setting default for new sessions
+      const msg = String(error)
+      try {
+        const nextDefault = await api.setDefaultAgentPreset(presetId)
+        set({
+          defaultPresetId: nextDefault,
+          noticeBanner: `当前会话已开始无法中途切换模式，已将「${presetName}」设为新建会话的默认模式`,
+          errorBanner: null,
+        })
+      } catch {
+        set({ errorBanner: `切换模式失败：${msg}` })
+      }
+    }
+  },
+
+  forkSession: async (sessionId) => {
+    try {
+      const child = await api.forkSession(sessionId)
+      set((state) => ({
+        sessions: [child, ...state.sessions.filter((s) => s.sessionId !== child.sessionId)],
+        activeSessionId: child.sessionId,
+        activeView: 'studio',
+        noticeBanner: `已分叉新会话：${child.title === 'New session' ? '新建会话' : child.title}`,
+        errorBanner: null,
+      }))
+      await get().refreshSessions()
+      await get().loadSessionHistory(child.sessionId, true)
+      return child
+    } catch (error) {
+      set({ errorBanner: `分叉会话失败：${String(error)}` })
+      return null
+    }
+  },
+
+  updateSessionMeta: async (sessionId, meta) => {
+    try {
+      const updated = await api.updateSessionMeta(sessionId, meta)
+      set((state) => ({
+        sessions: state.sessions.map((s) => (s.sessionId === sessionId ? updated : s)),
+        errorBanner: null,
+      }))
+      if (meta.archived !== undefined) {
+        set({ noticeBanner: meta.archived ? '会话已归档' : '会话已取消归档' })
+      } else if (meta.pinned !== undefined) {
+        set({ noticeBanner: meta.pinned ? '会话已置顶' : '已取消置顶' })
+      } else if (meta.title !== undefined) {
+        set({ noticeBanner: '会话名称已更新' })
+      }
+    } catch (error) {
+      set({ errorBanner: `更新会话属性失败：${String(error)}` })
     }
   },
 

@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
+  AgentPresetCatalog,
   AppConfig,
   AppStateSnapshot,
   ApprovalOutcome,
@@ -14,6 +15,7 @@ import type {
   PermissionMode,
   ProviderModels,
   SessionPermission,
+  SessionPresetResult,
   RewindResult,
   SessionTelemetryEvent,
   SessionModelSelection,
@@ -104,6 +106,37 @@ export async function resumeSession(sessionId: string): Promise<SessionSummary> 
 
 export async function abortSession(sessionId: string): Promise<boolean> {
   return invoke<boolean>('abort_session', { sessionId })
+}
+
+export async function listAgentPresets(): Promise<AgentPresetCatalog> {
+  return invoke<AgentPresetCatalog>('list_agent_presets')
+}
+
+export async function setDefaultAgentPreset(presetId: string): Promise<string> {
+  return invoke<string>('set_default_agent_preset', { presetId })
+}
+
+export async function setSessionPreset(
+  sessionId: string,
+  presetId: string,
+): Promise<SessionPresetResult> {
+  return invoke<SessionPresetResult>('set_session_preset', { sessionId, presetId })
+}
+
+export async function forkSession(sessionId: string): Promise<SessionSummary> {
+  return invoke<SessionSummary>('fork_session', { sessionId })
+}
+
+export async function updateSessionMeta(
+  sessionId: string,
+  meta: { title?: string | null; pinned?: boolean | null; archived?: boolean | null },
+): Promise<SessionSummary> {
+  return invoke<SessionSummary>('update_session_meta', {
+    sessionId,
+    title: meta.title ?? null,
+    pinned: meta.pinned ?? null,
+    archived: meta.archived ?? null,
+  })
 }
 
 export async function listModels(): Promise<ProviderModels[]> {

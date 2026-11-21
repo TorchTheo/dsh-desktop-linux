@@ -4,7 +4,10 @@ import {
   ChevronDown,
   ChevronRight,
   Folder,
+  Copy,
   FolderOpen,
+  GitFork,
+  Pencil,
   Loader2,
   Pin,
   Plus,
@@ -52,6 +55,8 @@ export function Sidebar() {
 
   const selectSession = useAppStore((s) => s.selectSession)
   const createSession = useAppStore((s) => s.createSession)
+  const forkSession = useAppStore((s) => s.forkSession)
+  const updateSessionMeta = useAppStore((s) => s.updateSessionMeta)
   const setSearchQuery = useAppStore((s) => s.setSearchQuery)
   const setShowArchived = useAppStore((s) => s.setShowArchived)
 
@@ -59,6 +64,40 @@ export function Sidebar() {
   const [collapsedDirs, setCollapsedDirs] = useState<Record<string, boolean>>({})
   const [expandedAllDirs, setExpandedAllDirs] = useState<Record<string, boolean>>({})
   const listScrollRef = useRef<HTMLDivElement | null>(null)
+  const [contextMenu, setContextMenu] = useState<{
+    session: SessionSummary
+    x: number
+    y: number
+  } | null>(null)
+  const [renameTarget, setRenameTarget] = useState<{
+    sessionId: string
+    value: string
+  } | null>(null)
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null)
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [contextMenu])
+
+  const copyText = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      useAppStore.setState({ noticeBanner: `已复制${label}` })
+    } catch {
+      useAppStore.setState({ errorBanner: `复制${label}失败` })
+    }
+  }
 
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => {
@@ -230,6 +269,15 @@ export function Sidebar() {
                                 <button
                                   type="button"
                                   onClick={() => void selectSession(session.sessionId)}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    const menuW = 192
+                                    const menuH = 260
+                                    const x = Math.min(e.clientX, window.innerWidth - menuW - 8)
+                                    const y = Math.min(e.clientY, window.innerHeight - menuH - 8)
+                                    setContextMenu({ session, x: Math.max(8, x), y: Math.max(8, y) })
+                                  }}
                                   className={`relative flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left transition ${
                                     active
                                       ? 'bg-[#ECEAE2] text-[#141413]'
@@ -331,6 +379,146 @@ export function Sidebar() {
           <span className="font-mono-tabular">共 {totalVisible} 条会话</span>
         </div>
       </div>
+
+      {contextMenu && (
+        <div
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="fixed z-50 w-48 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] py-1 shadow-md"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const s = contextMenu.session
+              setContextMenu(null)
+              void updateSessionMeta(s.sessionId, { pinned: !s.pinned })
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#141413] hover:bg-[#ECEAE2]"
+          >
+            <Pin className="h-3.5 w-3.5 text-[#575652]" />
+            {contextMenu.session.pinned ? '取消置顶' : '置顶会话'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const s = contextMenu.session
+              setContextMenu(null)
+              const current =
+                s.title === 'New session' || s.title === 'Untitled session' ? '' : s.title
+              setRenameTarget({ sessionId: s.sessionId, value: current })
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#141413] hover:bg-[#ECEAE2]"
+          >
+            <Pencil className="h-3.5 w-3.5 text-[#575652]" />
+            重命名会话
+          </button>
+
+          <button
+            type="button"
+            disabled={workerStatus.state !== 'ready'}
+            onClick={() => {
+              const s = contextMenu.session
+              setContextMenu(null)
+              void forkSession(s.sessionId)
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#141413] hover:bg-[#ECEAE2] disabled:opacity-45"
+          >
+            <GitFork className="h-3.5 w-3.5 text-[#1E4D9B]" />
+            分叉会话（Fork）
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const s = contextMenu.session
+              setContextMenu(null)
+              void updateSessionMeta(s.sessionId, { archived: !s.archived })
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#141413] hover:bg-[#ECEAE2]"
+          >
+            <Archive className="h-3.5 w-3.5 text-[#575652]" />
+            {contextMenu.session.archived ? '取消归档' : '归档会话'}
+          </button>
+
+          <div className="my-1 border-t border-[#ECEAE2]" />
+
+          <button
+            type="button"
+            onClick={() => {
+              const id = contextMenu.session.sessionId
+              setContextMenu(null)
+              void copyText(id, '会话 ID')
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            复制会话 ID
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const cwd = contextMenu.session.cwd
+              setContextMenu(null)
+              void copyText(cwd, '工作区路径')
+            }}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            复制工作区路径
+          </button>
+        </div>
+      )}
+
+      {renameTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#141413]/35 p-4 backdrop-blur-[2px]"
+          onMouseDown={() => setRenameTarget(null)}
+        >
+          <form
+            onMouseDown={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault()
+              const trimmed = renameTarget.value.trim()
+              if (!trimmed) return
+              const id = renameTarget.sessionId
+              setRenameTarget(null)
+              void updateSessionMeta(id, { title: trimmed })
+            }}
+            className="w-full max-w-sm rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] p-4 shadow-md"
+          >
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 bg-[#D13B27]" />
+              <h3 className="text-xs font-semibold tracking-wide text-[#141413]">重命名会话</h3>
+            </div>
+            <input
+              type="text"
+              autoFocus
+              value={renameTarget.value}
+              onChange={(e) => setRenameTarget({ ...renameTarget, value: e.target.value })}
+              placeholder="输入新的会话标题"
+              className="mt-3 w-full rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2.5 py-1.5 text-xs text-[#141413] placeholder-[#8A8880] focus:border-[#141413] focus:bg-[#FAF9F5] focus:outline-none"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRenameTarget(null)}
+                className="rounded border border-[#D8D5CB] bg-[#FAF9F5] px-3 py-1 text-xs text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                disabled={!renameTarget.value.trim()}
+                className="rounded bg-[#141413] px-3 py-1 text-xs font-medium text-[#FAF9F5] hover:bg-[#2a2a28] disabled:opacity-45"
+              >
+                保存
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </aside>
   )
 }

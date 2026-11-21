@@ -22,6 +22,24 @@ export interface BridgeCapabilities {
   pluginManager: boolean
   clientPlugins?: boolean
   hostHttpProxy?: boolean
+  agentPresets?: boolean
+  sessionActions?: boolean
+}
+
+export interface AgentPresetInfo {
+  id: string
+  name: string
+  description: string | null
+}
+
+export interface AgentPresetCatalog {
+  defaultPresetId: string | null
+  presets: AgentPresetInfo[]
+}
+
+export interface SessionPresetResult {
+  sessionId: string
+  presetId: string
 }
 
 export interface ClientPluginModule {
