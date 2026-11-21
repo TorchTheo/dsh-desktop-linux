@@ -1,10 +1,16 @@
+# Pass --patch before profile-specific flags such as --no-open.
 - id: sdk-jsonrpc-server
   disabled: true
+
+- id: web-runtime
+  config:
+    openBrowser: false
+    printUrl: false
 
 - insert:
     - id: desktop-sdk-jsonrpc-server
       # DSH resolves inserted relative paths beside this patch file.
       name: ./index.mjs
-      inject: [sdkAppStartup, loader]
+      inject: [loader]
       config:
         maxTokensAsSuccess: !!js "process.env.DSH_MAX_TOKENS_AS_SUCCESS === undefined ? true : JSON.parse(process.env.DSH_MAX_TOKENS_AS_SUCCESS)"

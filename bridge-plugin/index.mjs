@@ -23,6 +23,17 @@ function requiredString(value, field) {
   return value
 }
 
+function requiredBoolean(value, field) {
+  if (typeof value !== 'boolean') throw new TypeError(`${field} requires a boolean`)
+  return value
+}
+
+function pluginManagerOf(ctx) {
+  const manager = ctx.get('pluginManager')
+  if (manager === undefined) throw new Error('plugin manager is unavailable in this profile')
+  return manager
+}
+
 export function apply(ctx, config) {
   const rootFiber = ctx.root.fiber
   const transport = new JsonRpcLineTransport(config.input ?? process.stdin, config.output ?? process.stdout)
@@ -70,7 +81,64 @@ export function apply(ctx, config) {
   transport.onRequest(async (method, params) => {
     switch (method) {
       case 'desktop/capabilities':
-        return { streamDelta: true, abort: true, modelControl: true }
+        await ctx.get('loader')?.await()
+        return {
+          streamDelta: true,
+          abort: true,
+          modelControl: true,
+          hostInfo: ctx.get('webServer') !== undefined,
+          pluginManager: ctx.get('pluginManager') !== undefined,
+        }
+      case 'desktop/host/info': {
+        await ctx.get('loader')?.await()
+        const webServer = ctx.get('webServer')
+        const webOrigin = webServer?.getOrigin() ?? null
+        const appUrl = ctx.get('webApp')?.getAdvertisedUrl() ?? webOrigin
+        return {
+          webOrigin,
+          authenticatedUrl: appUrl === null ? null : ctx.get('connection')?.authenticatedUrl(appUrl) ?? null,
+          profile: ctx.get('profileContext')?.name ?? null,
+          hasWebServer: webServer !== undefined,
+          hasPluginManager: ctx.get('pluginManager') !== undefined,
+        }
+      }
+      case 'desktop/plugins/list': {
+        const bundles = await pluginManagerOf(ctx).listBundles()
+        return bundles.map(bundle => ({
+          name: bundle.name,
+          enabled: bundle.enabled,
+          installed: bundle.installed,
+          removable: bundle.removable,
+          availability: bundle.availability,
+          description: bundle.description ?? null,
+          version: bundle.version ?? null,
+          source: bundle.source ?? null,
+          error: bundle.error ?? null,
+          entries: bundle.rows.map(({ rowId, moduleName, entryId }) => ({
+            rowId, moduleName, entryId: entryId ?? null,
+          })),
+        }))
+      }
+      case 'desktop/plugins/set-bundle-enabled':
+        return pluginManagerOf(ctx).setBundleEnabled(
+          requiredString(params?.packageName, 'packageName'),
+          requiredBoolean(params?.enabled, 'enabled'),
+        )
+      case 'desktop/plugins/set-entry-enabled': {
+        const entryId = requiredString(params?.entryId, 'entryId')
+        const enabled = requiredBoolean(params?.enabled, 'enabled')
+        const manager = pluginManagerOf(ctx)
+        if (params.moduleName !== undefined) {
+          const moduleName = requiredString(params.moduleName, 'moduleName')
+          const entry = (await manager.listPlugins()).find(entry => entry.entryId === entryId)
+          if (entry?.moduleName !== moduleName) throw new Error('moduleName does not match the plugin entry')
+        }
+        return manager.setPluginEnabled(entryId, enabled)
+      }
+      case 'desktop/plugins/install':
+        return pluginManagerOf(ctx).installBundle(requiredString(params?.spec, 'spec'))
+      case 'desktop/plugins/remove':
+        return pluginManagerOf(ctx).removeBundle(requiredString(params?.packageName, 'packageName'))
       case 'desktop/session/abort': {
         const agent = ctx.agents.get(requiredString(params?.sessionId, 'sessionId'))
         if (agent?.status !== 'running') return { aborted: false }
