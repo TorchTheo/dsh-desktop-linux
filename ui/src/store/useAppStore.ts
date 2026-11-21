@@ -5,6 +5,7 @@ import type {
   AppConfig,
   ApprovalOutcome,
   ApprovalRequestEvent,
+  BackgroundJobInfo,
   BridgeCapabilities,
   HostRuntimeInfo,
   PluginBundleInfo,
@@ -83,6 +84,7 @@ interface AppStore {
   noticeBanner: string | null
   streamingBySession: Record<string, StreamingDraft>
   queuedMessagesBySession: Record<string, QueuedMessage[]>
+  jobsBySession: Record<string, BackgroundJobInfo[]>
   messagesBySession: Record<string, UiMessage[]>
   approvals: ApprovalRequestEvent[]
   questions: UserQuestionRequestEvent[]
@@ -128,6 +130,9 @@ interface AppStore {
   removeQueuedMessage: (sessionId: string, queuedId: string) => void
   editQueuedMessage: (sessionId: string, queuedId: string) => void
   flushQueuedMessage: (sessionId: string, queuedId: string) => Promise<void>
+  interruptAndSend: (text: string, images?: ImageAttachment[]) => Promise<void>
+  fetchSessionJobs: (sessionId: string) => Promise<void>
+  killSessionJob: (sessionId: string, jobId: string) => Promise<void>
   respondApproval: (requestId: string, outcome: ApprovalOutcome) => Promise<void>
   respondUserQuestion: (requestId: string, answer: unknown) => Promise<void>
   pickAndSetWorkingDirectory: () => Promise<void>
@@ -169,6 +174,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   noticeBanner: null,
   streamingBySession: {},
   queuedMessagesBySession: {},
+  jobsBySession: {},
   messagesBySession: {},
   approvals: [],
   questions: [],
@@ -393,6 +399,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }))
       },
 
+      onSessionJobs: ({ sessionId, jobs }) => {
+        set((state) => ({
+          jobsBySession: {
+            ...state.jobsBySession,
+            [sessionId]: jobs,
+          },
+        }))
+      },
+
       onOpenDirectory: (path) => {
         if (path) {
           void get().createSession(path)
@@ -609,6 +624,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           : state.activeView,
     }))
     await get().loadSessionHistory(sessionId)
+    if (get().bridgeCapabilities.sessionJobs) {
+      void get().fetchSessionJobs(sessionId)
+    }
   },
 
   createSession: async (cwd) => {
@@ -722,7 +740,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const keptMessages = cutIdx >= 0 ? prevMessages.slice(0, cutIdx) : []
       const newId = result.session.sessionId
       set((state) => ({
-        sessions: [result.session, ...state.sessions],
+        sessions: [
+          result.session,
+          ...state.sessions.map((s) =>
+            s.sessionId === sessionId ? { ...s, archived: true } : s,
+          ),
+        ],
         activeSessionId: newId,
         loadedHistoryIds: { ...state.loadedHistoryIds, [newId]: true },
         messagesBySession: { ...state.messagesBySession, [newId]: keptMessages },
@@ -774,7 +797,100 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
       activeSessionId: sessionId,
     }))
-    await get().sendQuery(target.text, target.images, { forceImmediate: true })
+    const sess = get().sessions.find((s) => s.sessionId === sessionId)
+    if (sess?.status === 'running' && get().bridgeCapabilities.interruptAndSend) {
+      await get().interruptAndSend(target.text, target.images)
+    } else {
+      await get().sendQuery(target.text, target.images, { forceImmediate: true })
+    }
+  },
+
+  interruptAndSend: async (text, images = []) => {
+    const trimmed = text.trim()
+    if (!trimmed && images.length === 0) return
+
+    let sessionId = get().activeSessionId
+    if (!sessionId) {
+      await get().sendQuery(trimmed, images, { forceImmediate: true })
+      return
+    }
+
+    const blocks: UiContentBlock[] = []
+    if (trimmed) {
+      blocks.push({ type: 'text', text: trimmed })
+    }
+    for (const img of images) {
+      blocks.push({
+        type: 'image',
+        mimeType: img.mimeType,
+        dataUrl: `data:${img.mimeType};base64,${img.data}`,
+      })
+    }
+
+    const localMsg: UiMessage = {
+      id: `local-user-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      role: 'user',
+      blocks,
+      timestamp: Date.now(),
+      isError: false,
+    }
+
+    set((state) => {
+      const nextStreaming = { ...state.streamingBySession }
+      delete nextStreaming[sessionId!]
+      return {
+        streamingBySession: nextStreaming,
+        messagesBySession: {
+          ...state.messagesBySession,
+          [sessionId!]: [...(state.messagesBySession[sessionId!] ?? []), localMsg],
+        },
+        sessions: state.sessions.map((s) =>
+          s.sessionId === sessionId
+            ? {
+                ...s,
+                status: 'running',
+                title: s.title === 'New session' && trimmed ? trimmed.slice(0, 32) : s.title,
+                updatedAt: Date.now(),
+              }
+            : s,
+        ),
+        errorBanner: null,
+      }
+    })
+
+    try {
+      await api.interruptAndSend(sessionId, trimmed, images, localMsg.id)
+    } catch (error) {
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.sessionId === sessionId ? { ...s, status: 'idle' } : s,
+        ),
+        errorBanner: `打断并发送失败：${String(error)}`,
+      }))
+    }
+  },
+
+  fetchSessionJobs: async (sessionId) => {
+    try {
+      const jobs = await api.listSessionJobs(sessionId)
+      set((state) => ({
+        jobsBySession: {
+          ...state.jobsBySession,
+          [sessionId]: jobs,
+        },
+      }))
+    } catch {
+      // Ignore if session jobs are unavailable
+    }
+  },
+
+  killSessionJob: async (sessionId, jobId) => {
+    try {
+      await api.killSessionJob(sessionId, jobId)
+      await get().fetchSessionJobs(sessionId)
+    } catch (error) {
+      set({ errorBanner: `终止后台进程失败：${String(error)}` })
+    }
   },
 
   respondApproval: async (requestId, outcome) => {

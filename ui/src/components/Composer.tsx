@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
-import { ArrowUp, Clock, FolderOpen, ImagePlus, ListPlus, Pencil, SendHorizontal, Square, X } from 'lucide-react'
+import { ArrowUp, ChevronDown, ChevronRight, Clock, FolderOpen, ImagePlus, ListPlus, Pencil, SendHorizontal, Square, Terminal, X, Zap } from 'lucide-react'
 import { DshSlot } from '../plugins/dshPluginHost'
 import { useAppStore } from '../store/useAppStore'
 import type { ImageAttachment } from '../types/domain'
@@ -62,10 +62,12 @@ export function Composer({ centered = false }: ComposerProps) {
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [slashDismissed, setSlashDismissed] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
+  const [jobsExpanded, setJobsExpanded] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   const sendQuery = useAppStore((s) => s.sendQuery)
+  const interruptAndSend = useAppStore((s) => s.interruptAndSend)
   const abortSession = useAppStore((s) => s.abortSession)
   const workerStatus = useAppStore((s) => s.workerStatus)
   const bridgeCapabilities = useAppStore((s) => s.bridgeCapabilities)
@@ -81,12 +83,15 @@ export function Composer({ centered = false }: ComposerProps) {
   const removeQueuedMessage = useAppStore((s) => s.removeQueuedMessage)
   const editQueuedMessage = useAppStore((s) => s.editQueuedMessage)
   const flushQueuedMessage = useAppStore((s) => s.flushQueuedMessage)
+  const jobsBySession = useAppStore((s) => s.jobsBySession)
+  const killSessionJob = useAppStore((s) => s.killSessionJob)
 
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
   const cwd = activeSession?.cwd ?? config?.defaultCwd ?? ''
   const disabled = workerStatus.state !== 'ready'
   const isRunning = activeSession?.status === 'running'
   const queuedMessages = activeSessionId ? (queuedMessagesBySession[activeSessionId] ?? []) : []
+  const activeJobs = activeSessionId ? (jobsBySession[activeSessionId] ?? []) : []
   const canAbort = Boolean(isRunning && bridgeCapabilities.abort && activeSessionId)
   const isAborting = Boolean(activeSessionId && abortingSessionId === activeSessionId)
 
@@ -140,6 +145,16 @@ export function Composer({ centered = false }: ComposerProps) {
     void sendQuery(nextText, nextImages)
   }
 
+  const handleInterruptSend = () => {
+    if (disabled) return
+    if (!text.trim() && images.length === 0) return
+    const nextText = text
+    const nextImages = images
+    setText('')
+    setImages([])
+    void interruptAndSend(nextText, nextImages)
+  }
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slashOpen) {
       if (e.key === 'ArrowDown') {
@@ -175,6 +190,11 @@ export function Composer({ centered = false }: ComposerProps) {
       }
     }
 
+    if (e.key === 'Enter' && e.ctrlKey && !e.shiftKey && !e.nativeEvent.isComposing && isRunning && bridgeCapabilities.interruptAndSend) {
+      e.preventDefault()
+      handleInterruptSend()
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       handleSend()
@@ -241,6 +261,57 @@ export function Composer({ centered = false }: ComposerProps) {
                 )
               })}
             </ul>
+          </div>
+        )}
+
+        {activeJobs.length > 0 && activeSessionId && (
+          <div className="mb-2 overflow-hidden rounded-lg border border-[#246A4D]/35 bg-[#FAF9F5]">
+            <button
+              type="button"
+              onClick={() => setJobsExpanded((v) => !v)}
+              className="flex w-full items-center justify-between bg-[#246A4D]/8 px-3 py-1.5 font-mono-tabular text-[11px] text-[#1d543d] transition hover:bg-[#246A4D]/12"
+            >
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-[#246A4D]" />
+                <Terminal className="h-3 w-3" />
+                后台进程 · {activeJobs.length} 个运行中
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] text-[#575652]">
+                <span>停止/打断对话不会终止后台进程</span>
+                {jobsExpanded ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+              </span>
+            </button>
+            {jobsExpanded && (
+              <ul className="divide-y divide-[#ECEAE2] border-t border-[#ECEAE2]">
+                {activeJobs.map((job) => (
+                  <li
+                    key={job.jobId}
+                    className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-[#141413]"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="font-mono-tabular shrink-0 rounded border border-[#246A4D]/30 bg-[#246A4D]/8 px-1.5 py-0.5 text-[10px] text-[#1d543d]">
+                        {job.kind}
+                      </span>
+                      <span className="font-mono-tabular truncate text-[11px]">
+                        {job.label || job.jobId}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void killSessionJob(activeSessionId, job.jobId)}
+                      title="手动终止此后台进程"
+                      className="shrink-0 rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2 py-0.5 text-[10px] text-[#575652] transition hover:border-[#D13B27] hover:bg-[#D13B27]/10 hover:text-[#D13B27]"
+                    >
+                      终止
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -427,6 +498,19 @@ export function Composer({ centered = false }: ComposerProps) {
                   <ArrowUp className="h-4 w-4 stroke-[2.2]" />
                 )}
               </button>
+
+              {isRunning && bridgeCapabilities.interruptAndSend && (
+                <button
+                  type="button"
+                  onClick={handleInterruptSend}
+                  disabled={disabled || (!text.trim() && images.length === 0)}
+                  className="inline-flex h-7 items-center gap-1 rounded bg-[#D13B27] px-2.5 text-xs font-medium text-[#FAF9F5] transition hover:bg-[#b5301f] disabled:cursor-not-allowed disabled:bg-[#ECEAE2] disabled:text-[#8A8880]"
+                  title="强行打断当前回复并立即发送（Ctrl+Enter，不终止后台进程）"
+                >
+                  <Zap className="h-3 w-3" />
+                  打断发送
+                </button>
+              )}
             </div>
           </div>
         </div>

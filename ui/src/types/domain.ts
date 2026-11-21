@@ -24,6 +24,21 @@ export interface BridgeCapabilities {
   hostHttpProxy?: boolean
   agentPresets?: boolean
   sessionActions?: boolean
+  interruptAndSend?: boolean
+  sessionJobs?: boolean
+}
+
+export interface BackgroundJobInfo {
+  jobId: string
+  kind: string
+  label: string
+  status: string
+  startedAt: number | null
+}
+
+export interface SessionJobsEvent {
+  sessionId: string
+  jobs: BackgroundJobInfo[]
 }
 
 export interface AgentPresetInfo {

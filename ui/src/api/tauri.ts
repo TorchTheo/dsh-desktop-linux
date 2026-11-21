@@ -6,6 +6,7 @@ import type {
   AppStateSnapshot,
   ApprovalOutcome,
   ApprovalRequestEvent,
+  BackgroundJobInfo,
   BridgeCapabilities,
   ClientPluginModule,
   ProxiedHttpResponse,
@@ -17,6 +18,7 @@ import type {
   SessionPermission,
   SessionPresetResult,
   RewindResult,
+  SessionJobsEvent,
   SessionTelemetryEvent,
   SessionModelSelection,
   SessionStatusEvent,
@@ -183,6 +185,28 @@ export async function sendQuery(
   })
 }
 
+export async function interruptAndSend(
+  sessionId: string,
+  text: string,
+  images?: ImageAttachment[],
+  clientMessageId?: string,
+): Promise<string | null> {
+  return invoke<string | null>('interrupt_and_send', {
+    sessionId,
+    text,
+    images: images && images.length > 0 ? images : null,
+    clientMessageId: clientMessageId ?? null,
+  })
+}
+
+export async function listSessionJobs(sessionId: string): Promise<BackgroundJobInfo[]> {
+  return invoke<BackgroundJobInfo[]>('list_session_jobs', { sessionId })
+}
+
+export async function killSessionJob(sessionId: string, jobId: string): Promise<boolean> {
+  return invoke<boolean>('kill_session_job', { sessionId, jobId })
+}
+
 export async function setSessionPermission(
   sessionId: string,
   mode: PermissionMode,
@@ -252,6 +276,7 @@ export interface BackendEventHandlers {
   onSubagentUpdate: (event: SubagentEvent) => void
   onOpenDirectory: (path: string) => void
   onSessionTelemetry: (event: SessionTelemetryEvent) => void
+  onSessionJobs: (event: SessionJobsEvent) => void
 }
 
 export async function subscribeBackendEvents(
@@ -274,6 +299,7 @@ export async function subscribeBackendEvents(
     listen<SubagentEvent>('dsh://subagent-update', (e) => handlers.onSubagentUpdate(e.payload)),
     listen<string>('dsh://open-directory', (e) => handlers.onOpenDirectory(e.payload)),
     listen<SessionTelemetryEvent>('dsh://session-telemetry', (e) => handlers.onSessionTelemetry(e.payload)),
+    listen<SessionJobsEvent>('dsh://session-jobs', (e) => handlers.onSessionJobs(e.payload)),
   ])
   return () => {
     for (const unlisten of unlisteners) {
