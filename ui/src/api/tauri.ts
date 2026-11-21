@@ -20,6 +20,7 @@ import type {
   RewindResult,
   SessionJobsEvent,
   SessionTelemetryEvent,
+  SkillInfo,
   SessionModelSelection,
   SessionStatusEvent,
   SessionSummary,
@@ -61,6 +62,34 @@ export async function proxyHostHttp(
     headers: headers ?? null,
     bodyBase64: bodyBase64 ?? null,
   })
+}
+
+export async function listSkills(cwd?: string | null): Promise<SkillInfo[]> {
+  return invoke<SkillInfo[]>('list_skills', { cwd: cwd ?? null })
+}
+
+export async function readSkillContent(path: string): Promise<string> {
+  return invoke<string>('read_skill_content', { path })
+}
+
+export async function saveUserSkill(
+  name: string,
+  description: string,
+  content: string,
+  scope: 'user' | 'workspace',
+  cwd?: string | null,
+): Promise<SkillInfo> {
+  return invoke<SkillInfo>('save_user_skill', {
+    name,
+    description,
+    content,
+    scope,
+    cwd: cwd ?? null,
+  })
+}
+
+export async function deleteUserSkill(path: string, cwd?: string | null): Promise<void> {
+  return invoke<void>('delete_user_skill', { path, cwd: cwd ?? null })
 }
 
 export async function listPlugins(): Promise<PluginBundleInfo[]> {

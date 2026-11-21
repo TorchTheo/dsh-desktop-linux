@@ -26,6 +26,15 @@ export interface BridgeCapabilities {
   sessionActions?: boolean
   interruptAndSend?: boolean
   sessionJobs?: boolean
+  skillsManager?: boolean
+}
+
+export interface SkillInfo {
+  name: string
+  description: string
+  source: string
+  path: string
+  editable: boolean
 }
 
 export interface BackgroundJobInfo {

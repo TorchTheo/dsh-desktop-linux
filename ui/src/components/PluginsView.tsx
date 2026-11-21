@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
+  BookOpen,
   ChevronDown,
   ChevronRight,
   Package,
@@ -11,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { DshSlot, useDshSlots } from '../plugins/dshPluginHost'
+import { SkillsManager } from './SkillsManager'
 import { useAppStore } from '../store/useAppStore'
 import type { PluginBundleInfo } from '../types/domain'
 
@@ -61,6 +63,7 @@ export function PluginsView() {
     [configSlots],
   )
 
+  const [activeTab, setActiveTab] = useState<'plugins' | 'skills'>('plugins')
   const [installSpec, setInstallSpec] = useState('')
   const [expandedBundles, setExpandedBundles] = useState<Record<string, boolean>>({})
   const [expandedConfigs, setExpandedConfigs] = useState<Record<string, boolean>>({})
@@ -108,11 +111,31 @@ export function PluginsView() {
       {/* Bauhaus Sub-header */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#D8D5CB] bg-[#FAF9F5] px-5 py-2.5">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Package className="h-4 w-4 text-[#D13B27]" />
-            <span className="text-xs font-semibold tracking-wide text-[#141413]">
+          <div className="inline-flex rounded border border-[#D8D5CB] bg-[#ECEAE2] p-0.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab('plugins')}
+              className={`inline-flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition ${
+                activeTab === 'plugins'
+                  ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
+                  : 'text-[#575652] hover:text-[#141413]'
+              }`}
+            >
+              <Package className="h-3.5 w-3.5" />
               插件管理
-            </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('skills')}
+              className={`inline-flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition ${
+                activeTab === 'skills'
+                  ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
+                  : 'text-[#575652] hover:text-[#141413]'
+              }`}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              技能管理
+            </button>
           </div>
 
           <div className="font-mono-tabular hidden items-center gap-2 text-[11px] text-[#575652] md:flex">
@@ -159,6 +182,9 @@ export function PluginsView() {
         </div>
       )}
 
+      {activeTab === 'skills' ? (
+        <SkillsManager />
+      ) : (
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
         <div className="mx-auto max-w-4xl space-y-5">
           {/* Profile guidance if pluginManager is unavailable */}
@@ -456,6 +482,7 @@ export function PluginsView() {
           </div>
         </div>
       </div>
+      )}
     </section>
   )
 }
