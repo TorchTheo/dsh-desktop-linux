@@ -120,6 +120,14 @@ export async function pickDirectory(): Promise<string | null> {
   return invoke<string | null>('pick_directory')
 }
 
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!isTauriRuntime()) {
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return
+  }
+  return invoke<void>('open_external_url', { url })
+}
+
 export interface BackendEventHandlers {
   onWorkerStatus: (status: WorkerStatus) => void
   onBridgeCapabilities: (caps: BridgeCapabilities) => void
@@ -130,6 +138,7 @@ export interface BackendEventHandlers {
   onUserQuestion: (event: UserQuestionRequestEvent) => void
   onUserQuestionCancelled: (event: UserQuestionCancelledEvent) => void
   onSubagentUpdate: (event: SubagentEvent) => void
+  onOpenDirectory: (path: string) => void
 }
 
 export async function subscribeBackendEvents(
@@ -149,6 +158,7 @@ export async function subscribeBackendEvents(
       handlers.onUserQuestionCancelled(e.payload),
     ),
     listen<SubagentEvent>('dsh://subagent-update', (e) => handlers.onSubagentUpdate(e.payload)),
+    listen<string>('dsh://open-directory', (e) => handlers.onOpenDirectory(e.payload)),
   ])
   return () => {
     for (const unlisten of unlisteners) {

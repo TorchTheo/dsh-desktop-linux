@@ -109,6 +109,26 @@ export function SettingsModal() {
             <span>启用 Cordis 桥接插件（流式打字机 / 实时停止生成 / 模型热切）</span>
           </label>
 
+          <label className="flex items-center gap-2 text-[#c9d1d9]">
+            <input
+              type="checkbox"
+              checked={draft.closeToTray}
+              onChange={(e) => setDraft({ ...draft, closeToTray: e.target.checked })}
+              className="rounded border-[#30363d] bg-[#0d1117]"
+            />
+            <span>关闭窗口时最小化到系统托盘（后台保持 Agent 运行）</span>
+          </label>
+
+          <label className="flex items-center gap-2 text-[#c9d1d9]">
+            <input
+              type="checkbox"
+              checked={draft.desktopNotifications}
+              onChange={(e) => setDraft({ ...draft, desktopNotifications: e.target.checked })}
+              className="rounded border-[#30363d] bg-[#0d1117]"
+            />
+            <span>后台需要工具审批、问答或任务完成时发送桌面通知</span>
+          </label>
+
           <label className="block space-y-1">
             <span className="text-[#8b949e]">默认工作目录</span>
             <input

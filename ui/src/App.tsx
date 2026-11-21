@@ -19,6 +19,33 @@ export function App() {
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
 
   useEffect(() => {
+    const STORAGE_KEY = 'dsh-desktop.zoom'
+    const clamp = (z: number) => Math.min(1.5, Math.max(0.75, Math.round(z * 10) / 10))
+    let zoom = clamp(Number(localStorage.getItem(STORAGE_KEY) || '1') || 1)
+    const applyZoom = (next: number) => {
+      zoom = clamp(next)
+      document.documentElement.style.fontSize = `${zoom * 16}px`
+      localStorage.setItem(STORAGE_KEY, String(zoom))
+    }
+    applyZoom(zoom)
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.altKey || e.metaKey) return
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault()
+        applyZoom(zoom + 0.1)
+      } else if (e.key === '-') {
+        e.preventDefault()
+        applyZoom(zoom - 0.1)
+      } else if (e.key === '0') {
+        e.preventDefault()
+        applyZoom(1)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  useEffect(() => {
     let cleanup: (() => void) | undefined
     void bootstrap().then((fn) => {
       cleanup = fn

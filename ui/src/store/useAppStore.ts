@@ -253,6 +253,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }))
       },
 
+      onOpenDirectory: (path) => {
+        if (path) {
+          void get().createSession(path)
+        }
+      },
+
       onSubagentUpdate: (evt) => {
         set((state) => {
           const prev = state.subagentsBySession[evt.parentSessionId] ?? []

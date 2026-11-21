@@ -9,6 +9,8 @@ export interface AppConfig {
   patches: string[]
   disableDmabuf: DmabufMode
   enableBridge: boolean
+  closeToTray: boolean
+  desktopNotifications: boolean
 }
 
 export interface BridgeCapabilities {

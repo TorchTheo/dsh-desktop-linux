@@ -2,10 +2,29 @@ import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { AlertCircle, Brain, ChevronDown, ChevronRight, Cpu, Loader2, Terminal, Wrench } from 'lucide-react'
+import { openExternalUrl } from '../api/tauri'
 import { useAppStore } from '../store/useAppStore'
 import type { UiContentBlock, UiMessage } from '../types/domain'
 import { ApprovalCard } from './ApprovalCard'
 import { QuestionCard } from './QuestionCard'
+
+const markdownComponents = {
+  a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a
+      {...props}
+      href={href}
+      className="text-blue-400 underline decoration-blue-400/40 underline-offset-2 hover:text-blue-300"
+      onClick={(e) => {
+        if (href && /^(https?:|mailto:)/i.test(href)) {
+          e.preventDefault()
+          void openExternalUrl(href)
+        }
+      }}
+    >
+      {children}
+    </a>
+  ),
+}
 
 function formatJson(value: unknown): string {
   if (typeof value === 'string') return value
@@ -107,7 +126,7 @@ function renderBlock(block: UiContentBlock, index: number) {
     case 'text':
       return (
         <div key={index} className="markdown-body text-sm leading-relaxed text-[#e6edf3]">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{block.text}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{block.text}</ReactMarkdown>
         </div>
       )
     case 'thinking':
@@ -260,7 +279,7 @@ export function ChatStream() {
             )}
             {streaming.text && (
               <div className="markdown-body text-sm leading-relaxed text-[#e6edf3]">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streaming.text}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{streaming.text}</ReactMarkdown>
                 <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-blue-400 align-middle" />
               </div>
             )}
