@@ -77,7 +77,7 @@ export function App() {
         <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[#D8D5CB] bg-[#F4F3EE] px-5">
           <div className="flex min-w-0 items-center gap-2.5">
             <h2 className="truncate text-sm font-semibold tracking-tight text-[#141413]">
-              {activeSession ? activeSession.title : '新对话'}
+              {activeSession ? (activeSession.title === 'New session' ? '新建会话' : activeSession.title) : '新建会话'}
             </h2>
             {activeSession && (
               <span className="font-mono-tabular hidden text-[10px] text-[#8A8880] sm:inline">
@@ -116,7 +116,7 @@ export function App() {
             <button
               type="button"
               onClick={() => setInspectorOpen(!inspectorOpen)}
-              title={inspectorOpen ? '隐藏 Inspector' : '展开 Inspector'}
+              title={inspectorOpen ? '隐藏详情面板' : '展开详情面板'}
               className={`rounded border p-1.5 transition ${
                 inspectorOpen
                   ? 'border-[#141413] bg-[#141413] text-[#FAF9F5]'

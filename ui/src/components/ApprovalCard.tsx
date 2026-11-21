@@ -15,7 +15,7 @@ export function ApprovalCard({ request }: Props) {
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 bg-[#C4881C]" />
             <span className="font-mono-tabular text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8E6210]">
-              Approval Required
+              需要执行审批
             </span>
           </div>
           <code className="font-mono-tabular rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 py-0.5 text-[11px] font-medium text-[#141413]">
@@ -31,7 +31,7 @@ export function ApprovalCard({ request }: Props) {
 
         {request.callId && (
           <div className="font-mono-tabular mt-2 text-[10px] text-[#8A8880]">
-            CALL_ID · {request.callId}
+            调用编号 · {request.callId}
           </div>
         )}
 

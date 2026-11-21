@@ -80,7 +80,7 @@ export function QuestionCard({ request }: Props) {
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-[#1E4D9B]" />
           <span className="font-mono-tabular text-[11px] font-semibold uppercase tracking-[0.1em] text-[#1E4D9B]">
-            Agent Question
+            助手请求确认
           </span>
         </div>
 

@@ -43,7 +43,7 @@ export function InspectorPanel() {
       <div className="flex h-full flex-col overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]">
         <div className="flex items-center justify-between border-b border-[#D8D5CB] px-4 py-2.5">
           <span className="font-mono-tabular text-[11px] font-semibold uppercase tracking-[0.12em] text-[#575652]">
-            Inspector
+            会话详情
           </span>
           <div className="flex items-center gap-1">
             {session?.persisted && (
@@ -59,7 +59,7 @@ export function InspectorPanel() {
             <button
               type="button"
               onClick={() => setInspectorOpen(false)}
-              title="关闭 Inspector"
+              title="关闭详情面板"
               className="rounded p-1 text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
             >
               <X className="h-3.5 w-3.5" />
@@ -70,13 +70,13 @@ export function InspectorPanel() {
         <div className="flex-1 space-y-4 overflow-y-auto p-4 text-xs">
           <section className="space-y-2.5">
             <div className="font-mono-tabular text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8A8880]">
-              Session Context
+              会话信息
             </div>
 
             {session ? (
               <div className="divide-y divide-[#ECEAE2] rounded border border-[#D8D5CB] bg-[#F4F3EE]/60 px-3 text-[11px]">
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-[#8A8880]">ID</span>
+                  <span className="text-[#8A8880]">编号</span>
                   <button
                     type="button"
                     onClick={handleCopyId}
@@ -93,30 +93,30 @@ export function InspectorPanel() {
                 </div>
 
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-[#8A8880]">STATUS</span>
+                  <span className="text-[#8A8880]">状态</span>
                   <span
                     className={`font-mono-tabular text-[10px] font-semibold uppercase ${
                       session.status === 'running' ? 'text-[#D13B27]' : 'text-[#246A4D]'
                     }`}
                   >
-                    {session.status === 'running' ? 'RUNNING' : 'IDLE'}
+                    {session.status === 'running' ? '运行中' : '空闲'}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-2 py-2">
-                  <span className="text-[#8A8880]">ROUTE</span>
+                  <span className="text-[#8A8880]">当前路由</span>
                   <span className="font-mono-tabular truncate text-right text-[#141413]">
                     {meta?.provider ?? config?.provider ?? '-'} / {meta?.model ?? config?.model ?? '-'}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-[#8A8880]">MESSAGES</span>
+                  <span className="text-[#8A8880]">消息数</span>
                   <span className="font-mono-tabular text-[#141413]">{messages.length}</span>
                 </div>
 
                 <div className="py-2">
-                  <div className="mb-1 text-[#8A8880]">CWD</div>
+                  <div className="mb-1 text-[#8A8880]">工作目录</div>
                   <button
                     type="button"
                     onClick={() => void pickAndSetWorkingDirectory()}
@@ -136,7 +136,7 @@ export function InspectorPanel() {
           <section className="space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8A8880]">
-                Subagents
+                子代理
               </span>
               <span className="font-mono-tabular text-[10px] text-[#8A8880]">{subagents.length}</span>
             </div>
@@ -171,7 +171,7 @@ export function InspectorPanel() {
                     </div>
                     {sa.stopReason && (
                       <div className="mt-1 text-[10px] text-[#8A8880]">
-                        STOP · {sa.stopReason}
+                        停止原因 · {sa.stopReason}
                       </div>
                     )}
                   </li>
@@ -183,7 +183,7 @@ export function InspectorPanel() {
           {(pendingApprovals.length > 0 || pendingQuestions.length > 0) && (
             <section className="space-y-1.5 rounded border border-[#C4881C]/50 bg-[#C4881C]/8 p-3 text-[11px]">
               <div className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#8E6210]">
-                Pending Actions
+                待处理操作
               </div>
               {pendingApprovals.length > 0 && (
                 <div className="text-[#141413]">{pendingApprovals.length} 项工具审批待确认</div>

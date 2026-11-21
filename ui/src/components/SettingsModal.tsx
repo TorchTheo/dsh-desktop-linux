@@ -86,9 +86,9 @@ export function SettingsModal() {
   ]
 
   const dmabufModes: { id: DmabufMode; label: string }[] = [
-    { id: 'auto', label: 'Auto' },
-    { id: 'always', label: 'Always' },
-    { id: 'never', label: 'Never' },
+    { id: 'auto', label: '自动' },
+    { id: 'always', label: '总是禁用' },
+    { id: 'never', label: '不禁用' },
   ]
 
   return (
@@ -98,7 +98,7 @@ export function SettingsModal() {
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 bg-[#D13B27]" />
             <h2 className="font-mono-tabular text-xs font-semibold uppercase tracking-[0.12em] text-[#141413]">
-              DSH Studio · Settings
+              系统设置
             </h2>
           </div>
           <button
@@ -145,7 +145,7 @@ export function SettingsModal() {
                 <div className="grid grid-cols-2 gap-3">
                   <label className="space-y-1">
                     <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#575652]">
-                      Provider
+                      模型服务商
                     </span>
                     <input
                       type="text"
@@ -156,7 +156,7 @@ export function SettingsModal() {
                   </label>
                   <label className="space-y-1">
                     <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#575652]">
-                      Model
+                      默认模型
                     </span>
                     <input
                       type="text"
@@ -169,13 +169,13 @@ export function SettingsModal() {
 
                 <label className="block space-y-1">
                   <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#575652]">
-                    Reasoning Effort（可选）
+                    默认推理强度（可选）
                   </span>
                   <input
                     type="text"
                     value={draft.reasoningEffort ?? ''}
                     onChange={(e) => setDraft({ ...draft, reasoningEffort: e.target.value || null })}
-                    placeholder="low / medium / high"
+                    placeholder="低（low）/ 中（medium）/ 高（high）"
                     className="font-mono-tabular w-full rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2.5 py-1.5 text-xs text-[#141413] placeholder-[#8A8880] focus:border-[#141413] focus:bg-[#FAF9F5] focus:outline-none"
                   />
                 </label>

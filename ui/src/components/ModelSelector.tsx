@@ -1,10 +1,11 @@
+import { Cpu, SlidersHorizontal } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 
 const EFFORTS = [
   { value: '', label: '默认推理' },
-  { value: 'low', label: 'low' },
-  { value: 'medium', label: 'medium' },
-  { value: 'high', label: 'high' },
+  { value: 'low', label: '低推理' },
+  { value: 'medium', label: '中推理' },
+  { value: 'high', label: '高推理' },
 ]
 
 export function ModelSelector() {
@@ -31,51 +32,57 @@ export function ModelSelector() {
   )
 
   return (
-    <div className="flex items-center gap-1.5">
-      <select
-        aria-label="选择模型"
-        value={currentValue}
-        onChange={(e) => {
-          const [provider, ...rest] = e.target.value.split('::')
-          const model = rest.join('::')
-          if (provider && model) {
-            void setSessionModel(provider, model, currentEffort || null)
-          }
-        }}
-        className="font-mono-tabular max-w-[200px] rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 py-0.5 text-[11px] text-[#141413] focus:border-[#1E4D9B] focus:outline-none"
-      >
-        {!hasCurrentInList && currentProvider && currentModel && (
-          <option value={currentValue}>
-            {currentProvider} / {currentModel}
-          </option>
-        )}
-        {providers.map((p) => (
-          <optgroup key={p.id} label={p.name || p.id}>
-            {p.models.map((m) => (
-              <option key={`${p.id}::${m.id}`} value={`${p.id}::${m.id}`}>
-                {m.name || m.id}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+    <>
+      <label className="inline-flex h-7 items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 text-xs text-[#141413] transition hover:border-[#141413]">
+        <Cpu className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+        <select
+          aria-label="选择模型"
+          value={currentValue}
+          onChange={(e) => {
+            const [provider, ...rest] = e.target.value.split('::')
+            const model = rest.join('::')
+            if (provider && model) {
+              void setSessionModel(provider, model, currentEffort || null)
+            }
+          }}
+          className="max-w-[180px] cursor-pointer bg-transparent text-xs text-[#141413] focus:outline-none"
+        >
+          {!hasCurrentInList && currentProvider && currentModel && (
+            <option value={currentValue}>
+              {currentProvider} / {currentModel}
+            </option>
+          )}
+          {providers.map((p) => (
+            <optgroup key={p.id} label={p.name || p.id}>
+              {p.models.map((m) => (
+                <option key={`${p.id}::${m.id}`} value={`${p.id}::${m.id}`}>
+                  {m.name || m.id}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
 
-      <select
-        aria-label="推理强度"
-        value={currentEffort}
-        onChange={(e) => {
-          if (currentProvider && currentModel) {
-            void setSessionModel(currentProvider, currentModel, e.target.value || null)
-          }
-        }}
-        className="font-mono-tabular rounded border border-[#D8D5CB] bg-[#ECEAE2] px-1.5 py-0.5 text-[11px] text-[#575652] focus:border-[#1E4D9B] focus:text-[#141413] focus:outline-none"
-      >
-        {EFFORTS.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
-    </div>
+      <label className="inline-flex h-7 items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 text-xs text-[#141413] transition hover:border-[#141413]">
+        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+        <select
+          aria-label="推理强度"
+          value={currentEffort}
+          onChange={(e) => {
+            if (currentProvider && currentModel) {
+              void setSessionModel(currentProvider, currentModel, e.target.value || null)
+            }
+          }}
+          className="cursor-pointer bg-transparent text-xs text-[#141413] focus:outline-none"
+        >
+          {EFFORTS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </>
   )
 }

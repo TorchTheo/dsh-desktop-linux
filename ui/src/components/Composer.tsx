@@ -1,13 +1,23 @@
-import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { ArrowUp, FolderOpen, ImagePlus, Square, X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import type { ImageAttachment } from '../types/domain'
 import { ModelSelector } from './ModelSelector'
 
-const SLASH_HINTS = [
-  { cmd: '/compact', desc: '压缩当前会话上下文' },
-  { cmd: '/goal', desc: '启动目标驱动模式' },
+interface SlashCommandItem {
+  cmd: string
+  desc: string
+}
+
+const SLASH_COMMANDS: SlashCommandItem[] = [
+  { cmd: '/compact', desc: '压缩当前会话上下文，释放上下文窗口' },
+  { cmd: '/goal', desc: '开启目标驱动模式，持续推进直至完成' },
 ]
+
+function basename(path: string): string {
+  const parts = path.replace(/\/+$/, '').split('/')
+  return parts[parts.length - 1] || path
+}
 
 function fileToAttachment(file: File): Promise<ImageAttachment> {
   return new Promise((resolve, reject) => {
@@ -33,7 +43,10 @@ interface ComposerProps {
 export function Composer({ centered = false }: ComposerProps) {
   const [text, setText] = useState('')
   const [images, setImages] = useState<ImageAttachment[]>([])
+  const [slashDismissed, setSlashDismissed] = useState(false)
+  const [slashIndex, setSlashIndex] = useState(0)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   const sendQuery = useAppStore((s) => s.sendQuery)
   const abortSession = useAppStore((s) => s.abortSession)
@@ -51,7 +64,26 @@ export function Composer({ centered = false }: ComposerProps) {
   const isRunning = activeSession?.status === 'running'
   const canAbort = Boolean(isRunning && bridgeCapabilities.abort && activeSessionId)
   const isAborting = Boolean(activeSessionId && abortingSessionId === activeSessionId)
-  const showSlashHints = text.startsWith('/') && !text.includes(' ')
+
+  const slashQuery = text.startsWith('/') && !text.includes(' ') && !text.includes('\n') ? text : null
+  const matchingCommands = useMemo(() => {
+    if (slashQuery === null) return []
+    const lower = slashQuery.toLowerCase()
+    return SLASH_COMMANDS.filter((item) => item.cmd.toLowerCase().startsWith(lower))
+  }, [slashQuery])
+
+  const slashOpen = !slashDismissed && slashQuery !== null && matchingCommands.length > 0
+
+  useEffect(() => {
+    setSlashIndex(0)
+    setSlashDismissed(false)
+  }, [slashQuery])
+
+  const applySlashCommand = (cmd: string) => {
+    setText(`${cmd} `)
+    setSlashDismissed(true)
+    textareaRef.current?.focus()
+  }
 
   const handleSend = () => {
     if (disabled) return
@@ -64,6 +96,40 @@ export function Composer({ centered = false }: ComposerProps) {
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSlashIndex((i) => (i + 1) % matchingCommands.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSlashIndex((i) => (i - 1 + matchingCommands.length) % matchingCommands.length)
+        return
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        const target = matchingCommands[slashIndex] ?? matchingCommands[0]
+        if (target) applySlashCommand(target.cmd)
+        return
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        const target = matchingCommands[slashIndex] ?? matchingCommands[0]
+        if (target && text.trim() !== target.cmd) {
+          applySlashCommand(target.cmd)
+        } else {
+          handleSend()
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setSlashDismissed(true)
+        return
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -90,20 +156,46 @@ export function Composer({ centered = false }: ComposerProps) {
 
   return (
     <div className={centered ? 'w-full max-w-[760px]' : 'shrink-0 px-6 pb-4 pt-2'}>
-      <div className={centered ? 'w-full' : 'mx-auto max-w-[780px]'}>
-        {showSlashHints && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {SLASH_HINTS.filter((h) => h.cmd.startsWith(text)).map((hint) => (
-              <button
-                key={hint.cmd}
-                type="button"
-                onClick={() => setText(`${hint.cmd} `)}
-                className="rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2.5 py-1 text-xs text-[#141413] transition hover:border-[#1E4D9B]"
-              >
-                <span className="font-mono-tabular font-medium text-[#1E4D9B]">{hint.cmd}</span>
-                <span className="ml-1.5 text-[#575652]">{hint.desc}</span>
-              </button>
-            ))}
+      <div className={`relative ${centered ? 'w-full' : 'mx-auto max-w-[780px]'}`}>
+        {slashOpen && (
+          <div
+            role="listbox"
+            aria-label="斜杠指令补全"
+            className="absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5]"
+          >
+            <div className="flex items-center justify-between border-b border-[#ECEAE2] bg-[#F4F3EE] px-3 py-1.5 text-[11px] text-[#8A8880]">
+              <span>可用指令</span>
+              <span>↑↓ 选择 · Tab 补全 · Esc 关闭</span>
+            </div>
+            <ul className="divide-y divide-[#ECEAE2] py-0.5">
+              {matchingCommands.map((item, idx) => {
+                const selected = idx === slashIndex
+                return (
+                  <li key={item.cmd}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onMouseEnter={() => setSlashIndex(idx)}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        applySlashCommand(item.cmd)
+                      }}
+                      className={`flex w-full items-center justify-between gap-4 px-3.5 py-2 text-left text-xs transition ${
+                        selected
+                          ? 'bg-[#ECEAE2] text-[#141413]'
+                          : 'bg-[#FAF9F5] text-[#575652] hover:bg-[#F4F3EE]'
+                      }`}
+                    >
+                      <span className="font-mono-tabular font-semibold text-[#1E4D9B]">
+                        {item.cmd}
+                      </span>
+                      <span className="truncate text-[#575652]">{item.desc}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
           </div>
         )}
 
@@ -117,7 +209,7 @@ export function Composer({ centered = false }: ComposerProps) {
                 >
                   <img
                     src={`data:${img.mimeType};base64,${img.data}`}
-                    alt={img.name ?? 'upload'}
+                    alt={img.name ?? '附件图片'}
                     className="h-14 w-14 object-cover"
                   />
                   <button
@@ -133,6 +225,7 @@ export function Composer({ centered = false }: ComposerProps) {
           )}
 
           <textarea
+            ref={textareaRef}
             rows={centered ? 3 : 2}
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -140,7 +233,7 @@ export function Composer({ centered = false }: ComposerProps) {
             onPaste={(e) => void handlePaste(e)}
             disabled={disabled}
             placeholder={
-              disabled ? '等待 dsh sdk 后端就绪...' : '输入指令、技术问题或 /compact 等命令...'
+              disabled ? '等待后端服务就绪...' : '输入指令、技术问题，或输入 / 查看可用指令...'
             }
             className="max-h-44 w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm leading-relaxed text-[#141413] placeholder-[#8A8880] focus:outline-none disabled:opacity-50"
           />
@@ -162,8 +255,8 @@ export function Composer({ centered = false }: ComposerProps) {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled}
-                title="附加图片（也支持直接粘贴截图）"
-                className="rounded border border-[#D8D5CB] bg-[#ECEAE2] p-1 text-[#575652] transition hover:border-[#141413] hover:text-[#141413] disabled:opacity-40"
+                title="附加图片（支持直接粘贴截图）"
+                className="inline-flex h-7 w-7 items-center justify-center rounded border border-[#D8D5CB] bg-[#ECEAE2] text-[#575652] transition hover:border-[#141413] hover:text-[#141413] disabled:opacity-40"
               >
                 <ImagePlus className="h-3.5 w-3.5" />
               </button>
@@ -171,11 +264,11 @@ export function Composer({ centered = false }: ComposerProps) {
               <button
                 type="button"
                 onClick={() => void pickAndSetWorkingDirectory()}
-                className="font-mono-tabular inline-flex max-w-[220px] items-center gap-1 rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 py-0.5 text-[11px] text-[#575652] transition hover:border-[#141413] hover:text-[#141413]"
+                className="inline-flex h-7 max-w-[180px] items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 text-xs text-[#141413] transition hover:border-[#141413]"
                 title={cwd || '选择工作目录'}
               >
-                <FolderOpen className="h-3 w-3 shrink-0 text-[#1E4D9B]" />
-                <span className="truncate">{cwd || '选择工作目录'}</span>
+                <FolderOpen className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+                <span className="truncate">{cwd ? basename(cwd) : '选择工作目录'}</span>
               </button>
 
               <ModelSelector />
@@ -200,7 +293,7 @@ export function Composer({ centered = false }: ComposerProps) {
                 onClick={handleSend}
                 disabled={disabled || (!text.trim() && images.length === 0)}
                 className="inline-flex h-7 w-7 items-center justify-center rounded bg-[#D13B27] text-[#FAF9F5] transition hover:bg-[#b5301f] disabled:cursor-not-allowed disabled:bg-[#ECEAE2] disabled:text-[#8A8880]"
-                title="发送 (Enter)"
+                title="发送（Enter）"
               >
                 <ArrowUp className="h-4 w-4 stroke-[2.2]" />
               </button>

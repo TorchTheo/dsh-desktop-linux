@@ -30,9 +30,9 @@ export function IconDock() {
 
   const statusTitle =
     workerStatus.state === 'ready'
-      ? `dsh sdk 就绪 (${workerStatus.serverVersion})`
+      ? `后端就绪（v${workerStatus.serverVersion}）`
       : workerStatus.state === 'starting'
-        ? '正在启动 dsh sdk...'
+        ? '正在启动后端...'
         : workerStatus.state === 'error'
           ? `后端异常：${workerStatus.message}`
           : '后端未连接'
@@ -43,10 +43,9 @@ export function IconDock() {
       className="flex h-full w-12 shrink-0 flex-col items-center justify-between border-r border-[#D8D5CB] bg-[#ECEAE2] py-3"
     >
       <div className="flex flex-col items-center gap-2">
-        {/* Bauhaus geometric signature mark */}
         <div
           className="mb-2 flex h-7 w-7 items-center justify-center rounded border border-[#D8D5CB] bg-[#FAF9F5]"
-          title="DSH Studio"
+          title="DSH 桌面端"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <circle cx="5" cy="5.5" r="2.6" fill="#D13B27" />
@@ -58,7 +57,7 @@ export function IconDock() {
         <button
           type="button"
           onClick={() => setActiveView('studio')}
-          title="对话工作台 (Studio · Ctrl+1)"
+          title="对话视图（Ctrl+1）"
           className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
             activeView === 'studio'
               ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
@@ -74,7 +73,7 @@ export function IconDock() {
         <button
           type="button"
           onClick={() => setActiveView('trajectory')}
-          title="Agent 轨迹视图 (Trajectory · Ctrl+2)"
+          title="Agent 轨迹视图（Ctrl+2）"
           className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
             activeView === 'trajectory'
               ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
@@ -92,7 +91,7 @@ export function IconDock() {
         <button
           type="button"
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          title={sidebarOpen ? '收起会话导轨 (Ctrl+B)' : '展开会话导轨 (Ctrl+B)'}
+          title={sidebarOpen ? '收起工作区侧栏（Ctrl+B）' : '展开工作区侧栏（Ctrl+B）'}
           className={`flex h-9 w-9 items-center justify-center rounded-md transition ${
             sidebarOpen
               ? 'bg-[#E5E2D8] text-[#141413]'
@@ -105,7 +104,7 @@ export function IconDock() {
         <button
           type="button"
           onClick={() => void refreshSessions()}
-          title="刷新 ~/.dsh 历史会话"
+          title="刷新本地历史会话"
           className="flex h-9 w-9 items-center justify-center rounded-md text-[#575652] transition hover:bg-[#E5E2D8] hover:text-[#141413]"
         >
           <History className="h-4 w-4 stroke-[1.75]" />
@@ -118,7 +117,7 @@ export function IconDock() {
           onClick={() =>
             void (workerStatus.state === 'ready' ? restartWorker() : startWorker())
           }
-          title={workerStatus.state === 'ready' ? '重启 dsh sdk 后端' : '启动 dsh sdk 后端'}
+          title={workerStatus.state === 'ready' ? '重启后端服务' : '启动后端服务'}
           className="flex h-8 w-8 items-center justify-center rounded-md text-[#575652] transition hover:bg-[#E5E2D8] hover:text-[#141413]"
         >
           <RefreshCw className="h-3.5 w-3.5 stroke-[1.75]" />
@@ -133,10 +132,7 @@ export function IconDock() {
           <Settings className="h-4 w-4 stroke-[1.75]" />
         </button>
 
-        <div
-          className="mt-1 flex h-6 w-6 items-center justify-center"
-          title={statusTitle}
-        >
+        <div className="mt-1 flex h-6 w-6 items-center justify-center" title={statusTitle}>
           <span className={`h-2.5 w-2.5 rounded-full ${statusColor}`} />
         </div>
       </div>
