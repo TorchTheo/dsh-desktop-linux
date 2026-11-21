@@ -6,6 +6,8 @@ import type {
   ApprovalOutcome,
   ApprovalRequestEvent,
   BridgeCapabilities,
+  ClientPluginModule,
+  ProxiedHttpResponse,
   HostRuntimeInfo,
   PluginBundleInfo,
   ImageAttachment,
@@ -37,6 +39,24 @@ export async function getAppState(): Promise<AppStateSnapshot> {
 
 export async function getHostInfo(): Promise<HostRuntimeInfo | null> {
   return invoke<HostRuntimeInfo | null>('get_host_info')
+}
+
+export async function listClientPlugins(): Promise<ClientPluginModule[]> {
+  return invoke<ClientPluginModule[]>('list_client_plugins')
+}
+
+export async function proxyHostHttp(
+  method: string,
+  path: string,
+  headers?: Record<string, string>,
+  bodyBase64?: string | null,
+): Promise<ProxiedHttpResponse> {
+  return invoke<ProxiedHttpResponse>('proxy_host_http', {
+    method,
+    path,
+    headers: headers ?? null,
+    bodyBase64: bodyBase64 ?? null,
+  })
 }
 
 export async function listPlugins(): Promise<PluginBundleInfo[]> {

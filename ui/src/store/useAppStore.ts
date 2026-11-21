@@ -27,7 +27,7 @@ export interface SessionMeta {
   reasoningEffort?: string | null
 }
 
-export type ActiveView = 'studio' | 'trajectory' | 'plugins'
+export type ActiveView = 'studio' | 'trajectory' | 'plugins' | 'plugin-panel'
 
 export interface StreamingDraft {
   thinking: string
@@ -60,6 +60,7 @@ interface AppStore {
   searchQuery: string
   showArchived: boolean
   activeView: ActiveView
+  activePluginPanelKey: string | null
   sidebarOpen: boolean
   inspectorOpen: boolean
   loadingHistoryId: string | null
@@ -80,6 +81,7 @@ interface AppStore {
   bootstrap: () => Promise<() => void>
   setSettingsOpen: (open: boolean) => void
   setActiveView: (view: ActiveView) => void
+  openPluginPanel: (panelKey: string) => void
   setSidebarOpen: (open: boolean) => void
   setInspectorOpen: (open: boolean) => void
   setSelectedWorkspaceId: (id: string | null) => void
@@ -129,6 +131,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   searchQuery: '',
   showArchived: false,
   activeView: 'studio',
+  activePluginPanelKey: null,
   sidebarOpen: true,
   inspectorOpen: false,
   loadingHistoryId: null,
@@ -148,6 +151,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setActiveView: (view) => set({ activeView: view }),
+  openPluginPanel: (panelKey) => set({ activeView: 'plugin-panel', activePluginPanelKey: panelKey }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setInspectorOpen: (open) => set({ inspectorOpen: open }),
   setSelectedWorkspaceId: (id) => set({ selectedWorkspaceId: id }),

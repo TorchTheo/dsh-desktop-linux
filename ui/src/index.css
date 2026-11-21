@@ -15,6 +15,29 @@
   --bauhaus-blue: #1e4d9b;
   --bauhaus-ochre: #c4881c;
   --bauhaus-green: #246a4d;
+
+  /* DSH third-party plugin design token bridge (Bauhaus Archival Paper) */
+  --dsw-alias-bg-base: #f4f3ee;
+  --dsw-alias-bg-layer-1: #faf9f5;
+  --dsw-alias-bg-layer-2: #eceae2;
+  --dsw-alias-label-primary: #141413;
+  --dsw-alias-label-secondary: #575652;
+  --dsw-alias-label-tertiary: #8a8880;
+  --dsw-alias-label-brand: #d13b27;
+  --dsw-alias-brand-primary: #d13b27;
+  --dsw-alias-border-l1: #d8d5cb;
+  --dsw-alias-border-l2: #c2beb2;
+  --dsw-alias-border-l3: #d8d5cb;
+  --dsw-alias-state-business-primary: #d13b27;
+  --dsw-alias-state-success-primary: #246a4d;
+  --dsw-alias-state-warn-primary: #c4881c;
+  --dsw-alias-state-warning-primary: #c4881c;
+  --dsw-alias-state-error-primary: #d13b27;
+  --dsw-alias-state-info-primary: #1e4d9b;
+  --dsw-alias-interactive-bg-hover: #eceae2;
+  --dsw-radius-md: 6px;
+  --dsh-content-font-size: 13.5px;
+  --dsh-frame-top-clearance: 0px;
 }
 
 html,

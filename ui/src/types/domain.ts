@@ -20,6 +20,20 @@ export interface BridgeCapabilities {
   modelControl: boolean
   hostInfo: boolean
   pluginManager: boolean
+  clientPlugins?: boolean
+  hostHttpProxy?: boolean
+}
+
+export interface ClientPluginModule {
+  id: string
+  packageName: string
+  bundlePath: string
+}
+
+export interface ProxiedHttpResponse {
+  status: number
+  headers: Record<string, string>
+  bodyBase64: string
 }
 
 export interface HostRuntimeInfo {
