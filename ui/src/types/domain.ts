@@ -194,3 +194,10 @@ export interface RewindResult {
   workspaceRestored: boolean
   workspaceNote: string
 }
+
+export type PermissionMode = 'read-only' | 'workspace-write' | 'danger-full-access'
+
+export interface SessionPermission {
+  sandboxMode: string
+  approvalPolicy: string
+}

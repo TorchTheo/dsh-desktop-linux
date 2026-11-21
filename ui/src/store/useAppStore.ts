@@ -6,6 +6,7 @@ import type {
   ApprovalRequestEvent,
   BridgeCapabilities,
   ImageAttachment,
+  PermissionMode,
   ProviderModels,
   SessionSummary,
   SessionTelemetry,
@@ -82,6 +83,7 @@ interface AppStore {
   refreshSessions: () => Promise<void>
   fetchModels: () => Promise<void>
   setSessionModel: (provider: string, model: string, reasoningEffort?: string | null) => Promise<void>
+  setSessionPermission: (mode: PermissionMode) => Promise<void>
   abortSession: () => Promise<void>
   selectSession: (sessionId: string) => Promise<void>
   loadSessionHistory: (sessionId: string, force?: boolean) => Promise<void>
@@ -369,6 +371,48 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }))
     } catch (error) {
       set({ errorBanner: `切换模型失败：${String(error)}` })
+    }
+  },
+
+  setSessionPermission: async (mode) => {
+    let sessionId = get().activeSessionId
+    if (!sessionId) {
+      const created = await get().createSession()
+      if (!created) return
+      sessionId = created.sessionId
+    }
+    try {
+      const res = await api.setSessionPermission(sessionId, mode)
+      set((state) => {
+        const prev = state.telemetryBySession[sessionId!] ?? {
+          uncachedInputTokens: 0,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          outputTokens: 0,
+          contextWindow: null,
+          surfaceTokens: null,
+          systemTokens: null,
+          toolsTokens: null,
+          messageTokens: null,
+          sandboxMode: null,
+          approvalPolicy: null,
+          turnCount: 0,
+          snapshotCount: 0,
+        }
+        return {
+          telemetryBySession: {
+            ...state.telemetryBySession,
+            [sessionId!]: {
+              ...prev,
+              sandboxMode: res.sandboxMode,
+              approvalPolicy: res.approvalPolicy,
+            },
+          },
+          errorBanner: null,
+        }
+      })
+    } catch (error) {
+      set({ errorBanner: `切换权限模式失败：${String(error)}` })
     }
   },
 

@@ -7,7 +7,9 @@ import type {
   ApprovalRequestEvent,
   BridgeCapabilities,
   ImageAttachment,
+  PermissionMode,
   ProviderModels,
+  SessionPermission,
   RewindResult,
   SessionTelemetryEvent,
   SessionModelSelection,
@@ -93,6 +95,13 @@ export async function sendQuery(
     images: images && images.length > 0 ? images : null,
     clientMessageId: clientMessageId ?? null,
   })
+}
+
+export async function setSessionPermission(
+  sessionId: string,
+  mode: PermissionMode,
+): Promise<SessionPermission> {
+  return invoke<SessionPermission>('set_session_permission', { sessionId, mode })
 }
 
 export async function rewindSession(
