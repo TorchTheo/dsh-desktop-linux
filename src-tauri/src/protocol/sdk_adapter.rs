@@ -46,6 +46,7 @@ enum RequestKind {
 }
 
 pub struct SdkAdapter {
+    ready_status: WorkerStatus,
     transport: Arc<JsonRpcTransport>,
     process: AsyncMutex<ProcessGroup>,
     pending: ServerRequests,
@@ -87,6 +88,7 @@ impl SdkAdapter {
 
         let (incoming_tx, incoming_rx) = mpsc::unbounded_channel();
         let mut adapter = Self {
+            ready_status: WorkerStatus::Starting,
             transport: Arc::new(JsonRpcTransport::new(stdout, stdin, incoming_tx)),
             process: AsyncMutex::new(process),
             pending: ServerRequests::default(),
@@ -126,6 +128,7 @@ impl SdkAdapter {
                 return Err(error);
             }
         };
+        adapter.ready_status = status.clone();
         let _ = adapter.event_tx.send(BackendEvent::WorkerStatus(status));
         adapter.dispatch = Some(tokio::spawn(dispatch_messages(
             incoming_rx,
@@ -135,6 +138,16 @@ impl SdkAdapter {
             Arc::clone(&adapter.stopping),
         )));
         Ok(adapter)
+    }
+
+    pub(crate) fn ready_status(&self) -> &WorkerStatus {
+        &self.ready_status
+    }
+
+    pub(crate) fn is_running(&self) -> bool {
+        self.dispatch
+            .as_ref()
+            .is_some_and(|task| !task.is_finished())
     }
 
     async fn rpc(&self, method: &str, params: Value) -> Result<Value, String> {
