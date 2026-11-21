@@ -258,9 +258,35 @@ pub enum UiContentBlock {
         mime_type: String,
         data_url: String,
     },
+    Deliverable {
+        path: String,
+        description: Option<String>,
+        mime_type: Option<String>,
+    },
     Unknown {
         raw: Value,
     },
+}
+
+pub fn infer_mime_type(path: &str) -> Option<String> {
+    let extension = std::path::Path::new(path).extension()?.to_str()?;
+    let mime = match extension.to_ascii_lowercase().as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "mov" => "video/quicktime",
+        "pdf" => "application/pdf",
+        "html" => "text/html",
+        "md" => "text/markdown",
+        "txt" => "text/plain",
+        "json" => "application/json",
+        _ => return None,
+    };
+    Some(mime.to_owned())
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

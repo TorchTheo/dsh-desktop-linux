@@ -1,4 +1,12 @@
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    fs::{self, OpenOptions},
+    io::Read,
+    os::unix::fs::OpenOptionsExt,
+    path::{Path, PathBuf},
+};
+
+use base64::{engine::general_purpose::STANDARD, Engine};
 
 use serde_json::Value;
 use tauri::{AppHandle, Manager, State, Url};
@@ -531,6 +539,67 @@ pub(crate) fn open_external_url(app: AppHandle, url: String) -> Result<(), Strin
     app.opener()
         .open_url(validate_external_url(&url)?.to_string(), None::<&str>)
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub(crate) async fn read_local_file_data_url(path: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        const MAX_BYTES: u64 = 25 * 1024 * 1024;
+
+        let local_path = resolve_local_path(&path)?;
+        if !local_path.is_file() {
+            return Err("Expected a regular file".into());
+        }
+        // Avoid blocking on a FIFO if the file is replaced before open.
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(local_path)
+            .map_err(|error| error.to_string())?;
+        let metadata = file.metadata().map_err(|error| error.to_string())?;
+        if !metadata.is_file() {
+            return Err("Expected a regular file".into());
+        }
+        if metadata.len() > MAX_BYTES {
+            return Err("File exceeds the 25 MiB preview limit".into());
+        }
+
+        let mut bytes = Vec::new();
+        file.take(MAX_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|error| error.to_string())?;
+        if bytes.len() as u64 > MAX_BYTES {
+            return Err("File exceeds the 25 MiB preview limit".into());
+        }
+        let mime = crate::domain::infer_mime_type(&path)
+            .unwrap_or_else(|| "application/octet-stream".into());
+        Ok(format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub(crate) async fn open_local_file(app: AppHandle, path: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let path = resolve_local_path(&path)?;
+        let path = path
+            .to_str()
+            .ok_or_else(|| "Local path is not valid UTF-8".to_owned())?;
+        app.opener()
+            .open_path(path, None::<&str>)
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+fn resolve_local_path(path: &str) -> Result<PathBuf, String> {
+    let path = Path::new(path);
+    if !path.is_absolute() {
+        return Err("Expected an absolute local path".into());
+    }
+    fs::canonicalize(path).map_err(|error| error.to_string())
 }
 
 fn validate_external_url(url: &str) -> Result<Url, String> {

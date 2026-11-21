@@ -115,6 +115,7 @@ pub fn load_session_transcript(
                 }
                 Some("assistant")
             }
+            Some("deliverables/presented") => Some("assistant"),
             Some("tool/result") => Some("tool"),
             Some("session") if !has_cache => {
                 detail.session.created_at = event["createdAt"].as_u64().unwrap_or_default();
@@ -158,6 +159,38 @@ mod tests {
 
     use super::*;
     use crate::{domain::UiContentBlock, storage::tests::TestHome};
+
+    #[test]
+    fn loads_presented_deliverables() {
+        let home = TestHome::new();
+        let event = json!({
+            "type": "deliverables/presented",
+            "time": 123,
+            "data": {
+                "turn": 1,
+                "callId": "present-1",
+                "files": [
+                    {"path": "/data/ComfyUI/output/nsfw_test_00002_.png", "description": "test"}
+                ]
+            }
+        });
+        home.write_log("f6b387a3", &event.to_string());
+        let detail = load_session_transcript(&home.0, "f6b387a3").unwrap();
+        assert_eq!(detail.messages.len(), 1);
+        let message = &detail.messages[0];
+        assert_eq!(message.id, "deliverables-present-1");
+        assert_eq!(message.role, "assistant");
+        assert_eq!(message.timestamp, 123);
+        assert!(!message.is_error);
+        assert_eq!(
+            message.blocks,
+            vec![UiContentBlock::Deliverable {
+                path: "/data/ComfyUI/output/nsfw_test_00002_.png".into(),
+                description: Some("test".into()),
+                mime_type: Some("image/png".into()),
+            }]
+        );
+    }
 
     #[test]
     fn derives_context_and_cache_usage_from_assistant_events() {

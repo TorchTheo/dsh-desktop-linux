@@ -960,6 +960,7 @@ pub fn project_session_event(session_id: &str, event: &Value) -> Vec<UiSessionEv
     let data = event.get("data").unwrap_or(event);
     let projected = match event["type"].as_str() {
         Some("assistant/message") => project_message(&session_id, event, data, "assistant"),
+        Some("deliverables/presented") => project_message(&session_id, event, data, "assistant"),
         Some("tool/result") => project_message(&session_id, event, data, "tool"),
         Some("session/title") => data["title"]
             .as_str()
@@ -1009,6 +1010,10 @@ pub(crate) fn decode_message(
     role: &str,
     line_number: Option<usize>,
 ) -> Option<UiMessage> {
+    if event["type"] == "deliverables/presented" {
+        return decode_deliverables(event, data, line_number);
+    }
+
     let message = data
         .get("message")
         .filter(|message| message.is_object())
@@ -1064,6 +1069,45 @@ pub(crate) fn decode_message(
         blocks,
         timestamp,
         is_error,
+    })
+}
+
+fn decode_deliverables(
+    event: &Value,
+    data: &Value,
+    line_number: Option<usize>,
+) -> Option<UiMessage> {
+    let blocks: Vec<_> = data["files"]
+        .as_array()?
+        .iter()
+        .filter_map(|file| {
+            let path = file["path"].as_str().filter(|path| !path.is_empty())?;
+            Some(UiContentBlock::Deliverable {
+                path: path.to_owned(),
+                description: file["description"].as_str().map(str::to_owned),
+                mime_type: crate::domain::infer_mime_type(path),
+            })
+        })
+        .collect();
+    if blocks.is_empty() {
+        return None;
+    }
+
+    let timestamp = event["time"]
+        .as_u64()
+        .or_else(|| event["timestamp"].as_u64())
+        .unwrap_or_default();
+    let suffix = event["seq"]
+        .as_u64()
+        .map(|seq| seq.to_string())
+        .or_else(|| data["callId"].as_str().map(str::to_owned))
+        .unwrap_or_else(|| line_number.map_or(timestamp, |line| line as u64).to_string());
+    Some(UiMessage {
+        id: format!("deliverables-{suffix}"),
+        role: "assistant".to_owned(),
+        blocks,
+        timestamp,
+        is_error: false,
     })
 }
 
@@ -1157,6 +1201,39 @@ mod tests {
 
     fn project(event: Value) -> Vec<UiSessionEvent> {
         project_session_event("s", &event)
+    }
+
+    #[test]
+    fn projects_presented_deliverables() {
+        assert_eq!(
+            project(json!({
+                "type": "deliverables/presented",
+                "seq": 42,
+                "time": 123,
+                "data": {
+                    "turn": 1,
+                    "callId": "present-1",
+                    "files": [
+                        {"path": "/data/ComfyUI/output/nsfw_test_00002_.png", "description": "test"},
+                        {"path": 123}
+                    ]
+                }
+            })),
+            vec![UiSessionEvent::Message {
+                session_id: "s".into(),
+                message: UiMessage {
+                    id: "deliverables-42".into(),
+                    role: "assistant".into(),
+                    blocks: vec![UiContentBlock::Deliverable {
+                        path: "/data/ComfyUI/output/nsfw_test_00002_.png".into(),
+                        description: Some("test".into()),
+                        mime_type: Some("image/png".into()),
+                    }],
+                    timestamp: 123,
+                    is_error: false,
+                },
+            }]
+        );
     }
 
     #[test]

@@ -89,6 +89,8 @@ pub fn run() {
             commands::update_config,
             commands::pick_directory,
             commands::open_external_url,
+            commands::read_local_file_data_url,
+            commands::open_local_file,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

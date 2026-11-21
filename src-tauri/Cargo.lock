@@ -899,6 +899,7 @@ dependencies = [
 name = "dsh-desktop"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
  "directories",
  "libc",
  "serde",
