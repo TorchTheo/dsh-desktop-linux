@@ -1,9 +1,19 @@
 import { useEffect } from 'react'
+import { AlertTriangle, X } from 'lucide-react'
+import { ChatStream } from './components/ChatStream'
+import { Composer } from './components/Composer'
+import { SettingsModal } from './components/SettingsModal'
+import { Sidebar } from './components/Sidebar'
 import { useAppStore } from './store/useAppStore'
 
 export function App() {
   const bootstrap = useAppStore((s) => s.bootstrap)
-  const workerStatus = useAppStore((s) => s.workerStatus)
+  const errorBanner = useAppStore((s) => s.errorBanner)
+  const clearError = useAppStore((s) => s.clearError)
+  const sessions = useAppStore((s) => s.sessions)
+  const activeSessionId = useAppStore((s) => s.activeSessionId)
+
+  const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
 
   useEffect(() => {
     let cleanup: (() => void) | undefined
@@ -16,10 +26,44 @@ export function App() {
   }, [bootstrap])
 
   return (
-    <div className="flex h-screen items-center justify-center bg-[#0d1117] text-[#e6edf3]">
-      <div className="rounded-xl border border-[#30363d] bg-[#161b22] px-6 py-4 text-sm">
-        DSH Desktop UI Scaffold · Worker: {workerStatus.state}
-      </div>
+    <div className="flex h-screen w-screen overflow-hidden bg-[#0d1117] text-[#e6edf3]">
+      <Sidebar />
+
+      <main className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#21262d] px-6">
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-medium text-[#e6edf3]">
+              {activeSession ? activeSession.title : '新对话'}
+            </h2>
+          </div>
+          {activeSession && (
+            <span className="truncate text-[11px] text-[#6e7681]">
+              {activeSession.sessionId.slice(0, 8)}
+            </span>
+          )}
+        </header>
+
+        {errorBanner && (
+          <div className="flex items-center justify-between border-b border-rose-500/30 bg-rose-950/40 px-5 py-2 text-xs text-rose-200">
+            <span className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
+              {errorBanner}
+            </span>
+            <button
+              type="button"
+              onClick={clearError}
+              className="rounded p-0.5 text-rose-300 hover:bg-rose-900/50"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        <ChatStream />
+        <Composer />
+      </main>
+
+      <SettingsModal />
     </div>
   )
 }
