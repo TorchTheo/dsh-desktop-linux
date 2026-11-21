@@ -5,9 +5,13 @@ import type {
   AppStateSnapshot,
   ApprovalOutcome,
   ApprovalRequestEvent,
+  BridgeCapabilities,
   ImageAttachment,
+  ProviderModels,
+  SessionModelSelection,
   SessionStatusEvent,
   SessionSummary,
+  StreamDeltaEvent,
   SubagentEvent,
   UiSessionDetail,
   UiSessionEvent,
@@ -39,6 +43,28 @@ export async function loadSessionHistory(sessionId: string): Promise<UiSessionDe
 
 export async function resumeSession(sessionId: string): Promise<SessionSummary> {
   return invoke<SessionSummary>('resume_session', { sessionId })
+}
+
+export async function abortSession(sessionId: string): Promise<boolean> {
+  return invoke<boolean>('abort_session', { sessionId })
+}
+
+export async function listModels(): Promise<ProviderModels[]> {
+  return invoke<ProviderModels[]>('list_models')
+}
+
+export async function setSessionModel(
+  sessionId: string,
+  provider: string,
+  model: string,
+  reasoningEffort?: string | null,
+): Promise<SessionModelSelection> {
+  return invoke<SessionModelSelection>('set_session_model', {
+    sessionId,
+    provider,
+    model,
+    reasoningEffort: reasoningEffort ?? null,
+  })
 }
 
 export async function startWorker(): Promise<WorkerStatus> {
@@ -96,6 +122,8 @@ export async function pickDirectory(): Promise<string | null> {
 
 export interface BackendEventHandlers {
   onWorkerStatus: (status: WorkerStatus) => void
+  onBridgeCapabilities: (caps: BridgeCapabilities) => void
+  onStreamDelta: (event: StreamDeltaEvent) => void
   onSessionStatus: (event: SessionStatusEvent) => void
   onSessionEvent: (event: UiSessionEvent) => void
   onApprovalRequest: (event: ApprovalRequestEvent) => void
@@ -109,6 +137,10 @@ export async function subscribeBackendEvents(
 ): Promise<UnlistenFn> {
   const unlisteners = await Promise.all([
     listen<WorkerStatus>('dsh://worker-status', (e) => handlers.onWorkerStatus(e.payload)),
+    listen<BridgeCapabilities>('dsh://bridge-capabilities', (e) =>
+      handlers.onBridgeCapabilities(e.payload),
+    ),
+    listen<StreamDeltaEvent>('dsh://stream-delta', (e) => handlers.onStreamDelta(e.payload)),
     listen<SessionStatusEvent>('dsh://session-status', (e) => handlers.onSessionStatus(e.payload)),
     listen<UiSessionEvent>('dsh://session-event', (e) => handlers.onSessionEvent(e.payload)),
     listen<ApprovalRequestEvent>('dsh://approval-request', (e) => handlers.onApprovalRequest(e.payload)),

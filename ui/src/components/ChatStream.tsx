@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { AlertCircle, Brain, ChevronDown, ChevronRight, Cpu, Terminal, Wrench } from 'lucide-react'
+import { AlertCircle, Brain, ChevronDown, ChevronRight, Cpu, Loader2, Terminal, Wrench } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import type { UiContentBlock, UiMessage } from '../types/domain'
 import { ApprovalCard } from './ApprovalCard'
@@ -16,8 +16,8 @@ function formatJson(value: unknown): string {
   }
 }
 
-function ThinkingBlock({ text }: { text: string }) {
-  const [open, setOpen] = useState(false)
+function ThinkingBlock({ text, defaultOpen = false, streaming = false }: { text: string; defaultOpen?: boolean; streaming?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="my-1.5 rounded-lg border border-[#30363d]/80 bg-[#12171f]">
       <button
@@ -26,8 +26,8 @@ function ThinkingBlock({ text }: { text: string }) {
         className="flex w-full items-center gap-1.5 px-3 py-1.5 text-xs text-[#8b949e] hover:text-[#c9d1d9]"
       >
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        <Brain className="h-3.5 w-3.5 text-purple-400" />
-        <span>思考过程</span>
+        <Brain className={`h-3.5 w-3.5 text-purple-400 ${streaming ? 'animate-pulse' : ''}`} />
+        <span>{streaming ? '思考中...' : '思考过程'}</span>
       </button>
       {open && (
         <div className="border-t border-[#21262d] px-3 py-2 text-xs whitespace-pre-wrap text-[#8b949e]">
@@ -173,6 +173,8 @@ function MessageRow({ message }: { message: UiMessage }) {
 export function ChatStream() {
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const messagesBySession = useAppStore((s) => s.messagesBySession)
+  const streamingBySession = useAppStore((s) => s.streamingBySession)
+  const loadingHistoryId = useAppStore((s) => s.loadingHistoryId)
   const sessions = useAppStore((s) => s.sessions)
   const approvals = useAppStore((s) => s.approvals)
   const questions = useAppStore((s) => s.questions)
@@ -182,6 +184,8 @@ export function ChatStream() {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : []
+  const streaming = activeSessionId ? streamingBySession[activeSessionId] : undefined
+  const isLoadingHistory = Boolean(activeSessionId && loadingHistoryId === activeSessionId)
   const sessionApprovals = approvals.filter(
     (a) => !activeSessionId || a.sessionId === activeSessionId,
   )
@@ -192,9 +196,30 @@ export function ChatStream() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, sessionApprovals.length, sessionQuestions.length])
+  }, [
+    messages.length,
+    streaming?.text.length,
+    streaming?.thinking.length,
+    sessionApprovals.length,
+    sessionQuestions.length,
+  ])
 
-  if (messages.length === 0 && sessionApprovals.length === 0 && sessionQuestions.length === 0) {
+  if (isLoadingHistory && messages.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center gap-2 text-xs text-[#8b949e]">
+        <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+        正在加载历史对话...
+      </div>
+    )
+  }
+
+  if (
+    messages.length === 0 &&
+    !streaming?.text &&
+    !streaming?.thinking &&
+    sessionApprovals.length === 0 &&
+    sessionQuestions.length === 0
+  ) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
         <div className="max-w-md rounded-2xl border border-[#21262d] bg-[#161b22]/70 px-8 py-7">
@@ -228,6 +253,20 @@ export function ChatStream() {
           <MessageRow key={msg.id} message={msg} />
         ))}
 
+        {(streaming?.thinking || streaming?.text) && (
+          <div className="space-y-1.5">
+            {streaming.thinking && (
+              <ThinkingBlock text={streaming.thinking} defaultOpen streaming />
+            )}
+            {streaming.text && (
+              <div className="markdown-body text-sm leading-relaxed text-[#e6edf3]">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streaming.text}</ReactMarkdown>
+                <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-blue-400 align-middle" />
+              </div>
+            )}
+          </div>
+        )}
+
         {subagents.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {subagents.map((sa) => (
@@ -254,7 +293,7 @@ export function ChatStream() {
           <QuestionCard key={req.requestId} request={req} />
         ))}
 
-        {activeSession?.status === 'running' && (
+        {activeSession?.status === 'running' && !streaming?.text && !streaming?.thinking && (
           <div className="flex items-center gap-2 text-xs text-[#8b949e]">
             <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
             Agent 正在执行...

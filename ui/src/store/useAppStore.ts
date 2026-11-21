@@ -4,7 +4,9 @@ import type {
   AppConfig,
   ApprovalOutcome,
   ApprovalRequestEvent,
+  BridgeCapabilities,
   ImageAttachment,
+  ProviderModels,
   SessionSummary,
   SubagentEvent,
   UiContentBlock,
@@ -18,12 +20,26 @@ import type {
 export interface SessionMeta {
   provider: string | null
   model: string | null
+  reasoningEffort?: string | null
+}
+
+export interface StreamingDraft {
+  thinking: string
+  text: string
+}
+
+const DEFAULT_BRIDGE_CAPS: BridgeCapabilities = {
+  streamDelta: false,
+  abort: false,
+  modelControl: false,
 }
 
 interface AppStore {
   initialized: boolean
   config: AppConfig | null
   workerStatus: WorkerStatus
+  bridgeCapabilities: BridgeCapabilities
+  providers: ProviderModels[]
   workspaces: WorkspaceSummary[]
   sessions: SessionSummary[]
   activeSessionId: string | null
@@ -32,8 +48,10 @@ interface AppStore {
   showArchived: boolean
   inspectorOpen: boolean
   loadingHistoryId: string | null
+  abortingSessionId: string | null
   loadedHistoryIds: Record<string, boolean>
   sessionMetaById: Record<string, SessionMeta>
+  streamingBySession: Record<string, StreamingDraft>
   messagesBySession: Record<string, UiMessage[]>
   approvals: ApprovalRequestEvent[]
   questions: UserQuestionRequestEvent[]
@@ -49,6 +67,9 @@ interface AppStore {
   setShowArchived: (show: boolean) => void
   clearError: () => void
   refreshSessions: () => Promise<void>
+  fetchModels: () => Promise<void>
+  setSessionModel: (provider: string, model: string, reasoningEffort?: string | null) => Promise<void>
+  abortSession: () => Promise<void>
   selectSession: (sessionId: string) => Promise<void>
   loadSessionHistory: (sessionId: string, force?: boolean) => Promise<void>
   createSession: (cwd?: string) => Promise<SessionSummary | null>
@@ -65,6 +86,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   initialized: false,
   config: null,
   workerStatus: { state: 'idle' },
+  bridgeCapabilities: DEFAULT_BRIDGE_CAPS,
+  providers: [],
   workspaces: [],
   sessions: [],
   activeSessionId: null,
@@ -73,8 +96,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   showArchived: false,
   inspectorOpen: true,
   loadingHistoryId: null,
+  abortingSessionId: null,
   loadedHistoryIds: {},
   sessionMetaById: {},
+  streamingBySession: {},
   messagesBySession: {},
   approvals: [],
   questions: [],
@@ -106,15 +131,55 @@ export const useAppStore = create<AppStore>((set, get) => ({
             workerStatus.state === 'stopped' || workerStatus.state === 'error'
               ? state.sessions.map((s) => ({ ...s, status: 'idle' }))
               : state.sessions,
+          streamingBySession:
+            workerStatus.state === 'stopped' || workerStatus.state === 'error'
+              ? {}
+              : state.streamingBySession,
         }))
       },
 
+      onBridgeCapabilities: (bridgeCapabilities) => {
+        set({ bridgeCapabilities })
+        if (bridgeCapabilities.modelControl) {
+          void get().fetchModels()
+        }
+      },
+
+      onStreamDelta: ({ sessionId, blockType, delta, reset }) => {
+        set((state) => {
+          const prev = reset
+            ? { thinking: '', text: '' }
+            : (state.streamingBySession[sessionId] ?? { thinking: '', text: '' })
+          const next: StreamingDraft =
+            blockType === 'thinking'
+              ? { ...prev, thinking: prev.thinking + delta }
+              : { ...prev, text: prev.text + delta }
+          return {
+            streamingBySession: {
+              ...state.streamingBySession,
+              [sessionId]: next,
+            },
+          }
+        })
+      },
+
       onSessionStatus: ({ sessionId, status }) => {
-        set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.sessionId === sessionId ? { ...s, status, updatedAt: Date.now() } : s,
-          ),
-        }))
+        set((state) => {
+          const nextStreaming = { ...state.streamingBySession }
+          if (status === 'idle') {
+            delete nextStreaming[sessionId]
+          }
+          return {
+            sessions: state.sessions.map((s) =>
+              s.sessionId === sessionId ? { ...s, status, updatedAt: Date.now() } : s,
+            ),
+            streamingBySession: nextStreaming,
+            abortingSessionId:
+              status === 'idle' && state.abortingSessionId === sessionId
+                ? null
+                : state.abortingSessionId,
+          }
+        })
       },
 
       onSessionEvent: (event: UiSessionEvent) => {
@@ -125,11 +190,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
             const nextList = exists
               ? list.map((m) => (m.id === event.message.id ? event.message : m))
               : [...list, event.message]
+            const nextStreaming = { ...state.streamingBySession }
+            if (event.message.role === 'assistant') {
+              delete nextStreaming[event.sessionId]
+            }
             return {
               messagesBySession: {
                 ...state.messagesBySession,
                 [event.sessionId]: nextList,
               },
+              streamingBySession: nextStreaming,
             }
           })
         } else if (event.kind === 'titleUpdated') {
@@ -138,6 +208,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
               s.sessionId === event.sessionId ? { ...s, title: event.title } : s,
             ),
           }))
+        } else if (event.kind === 'turnEnded') {
+          set((state) => {
+            const nextStreaming = { ...state.streamingBySession }
+            delete nextStreaming[event.sessionId]
+            return { streamingBySession: nextStreaming }
+          })
         } else if (event.kind === 'attemptFailed') {
           const errMsg: UiMessage = {
             id: `attempt-err-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -195,14 +271,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       const snapshot = await api.getAppState()
       const initialId = snapshot.sessions[0]?.sessionId ?? null
+      const caps = snapshot.bridgeCapabilities ?? DEFAULT_BRIDGE_CAPS
       set({
         initialized: true,
         config: snapshot.config,
         workerStatus: snapshot.workerStatus,
+        bridgeCapabilities: caps,
         workspaces: snapshot.workspaces ?? [],
         sessions: snapshot.sessions,
         activeSessionId: initialId,
       })
+      if (caps.modelControl) {
+        void get().fetchModels()
+      }
       if (initialId) {
         void get().loadSessionHistory(initialId)
       }
@@ -216,6 +297,51 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return unlisten
   },
 
+  fetchModels: async () => {
+    try {
+      const providers = await api.listModels()
+      set({ providers })
+    } catch {
+      // Bridge unavailable or not ready yet; ignore silently.
+    }
+  },
+
+  setSessionModel: async (provider, model, reasoningEffort = null) => {
+    let sessionId = get().activeSessionId
+    if (!sessionId) {
+      const created = await get().createSession()
+      if (!created) return
+      sessionId = created.sessionId
+    }
+    try {
+      const selected = await api.setSessionModel(sessionId, provider, model, reasoningEffort)
+      set((state) => ({
+        sessionMetaById: {
+          ...state.sessionMetaById,
+          [sessionId!]: {
+            provider: selected.provider,
+            model: selected.model,
+            reasoningEffort: selected.reasoningEffort,
+          },
+        },
+        errorBanner: null,
+      }))
+    } catch (error) {
+      set({ errorBanner: `切换模型失败：${String(error)}` })
+    }
+  },
+
+  abortSession: async () => {
+    const sessionId = get().activeSessionId
+    if (!sessionId) return
+    set({ abortingSessionId: sessionId })
+    try {
+      await api.abortSession(sessionId)
+    } catch (error) {
+      set({ abortingSessionId: null, errorBanner: `中断生成失败：${String(error)}` })
+    }
+  },
+
   refreshSessions: async () => {
     try {
       const snapshot = await api.refreshSessions()
@@ -223,6 +349,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         workspaces: snapshot.workspaces ?? [],
         sessions: snapshot.sessions,
         workerStatus: snapshot.workerStatus,
+        bridgeCapabilities: snapshot.bridgeCapabilities ?? get().bridgeCapabilities,
         errorBanner: null,
       })
     } catch (error) {
@@ -250,7 +377,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
           messagesBySession: { ...s.messagesBySession, [sessionId]: merged },
           sessionMetaById: {
             ...s.sessionMetaById,
-            [sessionId]: { provider: detail.provider, model: detail.model },
+            [sessionId]: {
+              ...s.sessionMetaById[sessionId],
+              provider: detail.provider,
+              model: detail.model,
+            },
           },
           sessions: s.sessions.map((item) =>
             item.sessionId === sessionId

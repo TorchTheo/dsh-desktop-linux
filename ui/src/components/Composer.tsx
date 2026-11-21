@@ -1,5 +1,5 @@
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
-import { FolderOpen, ImagePlus, Send, X } from 'lucide-react'
+import { FolderOpen, ImagePlus, Send, Square, X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import type { ImageAttachment } from '../types/domain'
 
@@ -31,7 +31,10 @@ export function Composer() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const sendQuery = useAppStore((s) => s.sendQuery)
+  const abortSession = useAppStore((s) => s.abortSession)
   const workerStatus = useAppStore((s) => s.workerStatus)
+  const bridgeCapabilities = useAppStore((s) => s.bridgeCapabilities)
+  const abortingSessionId = useAppStore((s) => s.abortingSessionId)
   const sessions = useAppStore((s) => s.sessions)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const config = useAppStore((s) => s.config)
@@ -40,6 +43,9 @@ export function Composer() {
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
   const cwd = activeSession?.cwd ?? config?.defaultCwd ?? ''
   const disabled = workerStatus.state !== 'ready'
+  const isRunning = activeSession?.status === 'running'
+  const canAbort = Boolean(isRunning && bridgeCapabilities.abort && activeSessionId)
+  const isAborting = Boolean(activeSessionId && abortingSessionId === activeSessionId)
   const showSlashHints = text.startsWith('/') && !text.includes(' ')
 
   const handleSend = () => {
@@ -167,6 +173,18 @@ export function Composer() {
             }
             className="max-h-40 flex-1 resize-none bg-transparent py-1.5 text-sm text-[#e6edf3] placeholder-[#6e7681] focus:outline-none disabled:opacity-50"
           />
+
+          {canAbort && (
+            <button
+              type="button"
+              onClick={() => void abortSession()}
+              disabled={isAborting}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-600 text-white transition hover:bg-rose-500 disabled:opacity-50"
+              title="停止生成"
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+            </button>
+          )}
 
           <button
             type="button"

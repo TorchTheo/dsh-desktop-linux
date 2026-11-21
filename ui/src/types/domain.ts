@@ -8,6 +8,38 @@ export interface AppConfig {
   defaultCwd: string
   patches: string[]
   disableDmabuf: DmabufMode
+  enableBridge: boolean
+}
+
+export interface BridgeCapabilities {
+  streamDelta: boolean
+  abort: boolean
+  modelControl: boolean
+}
+
+export interface StreamDeltaEvent {
+  sessionId: string
+  blockType: string
+  delta: string
+  reset: boolean
+}
+
+export interface ModelEntry {
+  id: string
+  name: string
+  description?: string | null
+}
+
+export interface ProviderModels {
+  id: string
+  name: string
+  models: ModelEntry[]
+}
+
+export interface SessionModelSelection {
+  provider: string
+  model: string
+  reasoningEffort: string | null
 }
 
 export type WorkerStatus =
@@ -43,6 +75,7 @@ export interface AppStateSnapshot {
   workerStatus: WorkerStatus
   sessions: SessionSummary[]
   workspaces: WorkspaceSummary[]
+  bridgeCapabilities: BridgeCapabilities
 }
 
 export interface ImageAttachment {
