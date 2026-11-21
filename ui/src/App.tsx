@@ -98,7 +98,7 @@ export function App() {
                     : 'text-[#575652] hover:text-[#141413]'
                 }`}
               >
-                Studio
+                对话
               </button>
               <button
                 type="button"
@@ -109,7 +109,7 @@ export function App() {
                     : 'text-[#575652] hover:text-[#141413]'
                 }`}
               >
-                Trajectory
+                轨迹
               </button>
             </div>
 

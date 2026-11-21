@@ -50,7 +50,9 @@ export function Sidebar() {
   const setSearchQuery = useAppStore((s) => s.setSearchQuery)
   const setShowArchived = useAppStore((s) => s.setShowArchived)
 
+  const DEFAULT_VISIBLE = 5
   const [collapsedDirs, setCollapsedDirs] = useState<Record<string, boolean>>({})
+  const [expandedAllDirs, setExpandedAllDirs] = useState<Record<string, boolean>>({})
 
   const tree = useMemo<WorkspaceTreeNode[]>(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -196,7 +198,7 @@ export function Sidebar() {
                         {node.sessions.length === 0 ? (
                           <li className="px-2 py-1.5 text-[11px] text-[#8A8880]">暂无会话</li>
                         ) : (
-                          node.sessions.map((session) => {
+                          (searchQuery.trim() || expandedAllDirs[node.key] ? node.sessions : node.sessions.slice(0, DEFAULT_VISIBLE)).map((session) => {
                             const active = session.sessionId === activeSessionId
                             const isLoading = loadingHistoryId === session.sessionId
                             const displayTitle =
@@ -232,6 +234,27 @@ export function Sidebar() {
                               </li>
                             )
                           })
+                        )}
+                        {!searchQuery.trim() && node.sessions.length > DEFAULT_VISIBLE && (
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedAllDirs((prev) => ({
+                                  ...prev,
+                                  [node.key]: !prev[node.key],
+                                }))
+                              }
+                              className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-[11px] text-[#8A8880] transition hover:bg-[#F4F3EE] hover:text-[#141413]"
+                            >
+                              <span className="font-mono-tabular font-semibold tracking-widest">...</span>
+                              <span>
+                                {expandedAllDirs[node.key]
+                                  ? "收起"
+                                  : `展开其余 ${node.sessions.length - DEFAULT_VISIBLE} 条`}
+                              </span>
+                            </button>
+                          </li>
                         )}
                       </ul>
                     )}

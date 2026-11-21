@@ -1,4 +1,5 @@
-import { Cpu, SlidersHorizontal } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, Cpu, SlidersHorizontal } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 
 const EFFORTS = [
@@ -17,6 +18,27 @@ export function ModelSelector() {
   const config = useAppStore((s) => s.config)
   const setSessionModel = useAppStore((s) => s.setSessionModel)
 
+  const [openMenu, setOpenMenu] = useState<'model' | 'effort' | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!openMenu) return
+    const onPointerDown = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpenMenu(null)
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenMenu(null)
+    }
+    window.addEventListener('mousedown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('mousedown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [openMenu])
+
   if (!bridgeCapabilities.modelControl || workerStatus.state !== 'ready') {
     return null
   }
@@ -25,64 +47,120 @@ export function ModelSelector() {
   const currentProvider = meta?.provider ?? config?.provider ?? ''
   const currentModel = meta?.model ?? config?.model ?? ''
   const currentEffort = meta?.reasoningEffort ?? config?.reasoningEffort ?? ''
-  const currentValue = `${currentProvider}::${currentModel}`
 
-  const hasCurrentInList = providers.some(
-    (p) => p.id === currentProvider && p.models.some((m) => m.id === currentModel),
-  )
+  const matchedModelName =
+    providers
+      .find((p) => p.id === currentProvider)
+      ?.models.find((m) => m.id === currentModel)?.name || currentModel || '选择模型'
+
+  const currentEffortLabel =
+    EFFORTS.find((e) => e.value === currentEffort)?.label ?? '默认推理'
 
   return (
-    <>
-      <label className="inline-flex h-7 items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 text-xs text-[#141413] transition hover:border-[#141413]">
-        <Cpu className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
-        <select
-          aria-label="选择模型"
-          value={currentValue}
-          onChange={(e) => {
-            const [provider, ...rest] = e.target.value.split('::')
-            const model = rest.join('::')
-            if (provider && model) {
-              void setSessionModel(provider, model, currentEffort || null)
-            }
-          }}
-          className="max-w-[180px] cursor-pointer bg-transparent text-xs text-[#141413] focus:outline-none"
+    <div ref={containerRef} className="relative flex items-center gap-1.5">
+      {/* 模型自定义下拉菜单 */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpenMenu((m) => (m === 'model' ? null : 'model'))}
+          title={`${currentProvider} / ${currentModel}`}
+          className={`inline-flex h-7 max-w-[200px] items-center gap-1.5 rounded border px-2 text-xs text-[#141413] transition ${
+            openMenu === 'model'
+              ? 'border-[#141413] bg-[#FAF9F5]'
+              : 'border-[#D8D5CB] bg-[#ECEAE2] hover:border-[#141413]'
+          }`}
         >
-          {!hasCurrentInList && currentProvider && currentModel && (
-            <option value={currentValue}>
-              {currentProvider} / {currentModel}
-            </option>
-          )}
-          {providers.map((p) => (
-            <optgroup key={p.id} label={p.name || p.id}>
-              {p.models.map((m) => (
-                <option key={`${p.id}::${m.id}`} value={`${p.id}::${m.id}`}>
-                  {m.name || m.id}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
+          <Cpu className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+          <span className="truncate">{matchedModelName}</span>
+          <ChevronDown className="h-3 w-3 shrink-0 text-[#8A8880]" />
+        </button>
 
-      <label className="inline-flex h-7 items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 text-xs text-[#141413] transition hover:border-[#141413]">
-        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
-        <select
-          aria-label="推理强度"
-          value={currentEffort}
-          onChange={(e) => {
-            if (currentProvider && currentModel) {
-              void setSessionModel(currentProvider, currentModel, e.target.value || null)
-            }
-          }}
-          className="cursor-pointer bg-transparent text-xs text-[#141413] focus:outline-none"
+        {openMenu === 'model' && (
+          <div className="absolute bottom-full left-0 z-40 mb-1.5 max-h-72 w-64 overflow-y-auto rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] py-1">
+            {providers.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-[#8A8880]">暂无可用模型</div>
+            ) : (
+              providers.map((p) => (
+                <div key={p.id} className="py-1 first:pt-0.5">
+                  <div className="px-3 py-1 text-[10px] font-semibold tracking-wider text-[#8A8880]">
+                    {p.name || p.id}
+                  </div>
+                  <ul>
+                    {p.models.map((m) => {
+                      const active = p.id === currentProvider && m.id === currentModel
+                      return (
+                        <li key={`${p.id}::${m.id}`}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenMenu(null)
+                              void setSessionModel(p.id, m.id, currentEffort || null)
+                            }}
+                            className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs transition ${
+                              active
+                                ? 'bg-[#ECEAE2] font-medium text-[#141413]'
+                                : 'text-[#575652] hover:bg-[#F4F3EE] hover:text-[#141413]'
+                            }`}
+                          >
+                            <span className="truncate">{m.name || m.id}</span>
+                            {active && <Check className="h-3.5 w-3.5 shrink-0 text-[#D13B27]" />}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 推理强度自定义下拉菜单 */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpenMenu((m) => (m === 'effort' ? null : 'effort'))}
+          title="切换推理强度"
+          className={`inline-flex h-7 items-center gap-1.5 rounded border px-2 text-xs text-[#141413] transition ${
+            openMenu === 'effort'
+              ? 'border-[#141413] bg-[#FAF9F5]'
+              : 'border-[#D8D5CB] bg-[#ECEAE2] hover:border-[#141413]'
+          }`}
         >
-          {EFFORTS.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </label>
-    </>
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+          <span>{currentEffortLabel}</span>
+          <ChevronDown className="h-3 w-3 shrink-0 text-[#8A8880]" />
+        </button>
+
+        {openMenu === 'effort' && (
+          <div className="absolute bottom-full left-0 z-40 mb-1.5 w-32 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] py-1">
+            {EFFORTS.map((item) => {
+              const active = item.value === currentEffort
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => {
+                    setOpenMenu(null)
+                    if (currentProvider && currentModel) {
+                      void setSessionModel(currentProvider, currentModel, item.value || null)
+                    }
+                  }}
+                  className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition ${
+                    active
+                      ? 'bg-[#ECEAE2] font-medium text-[#141413]'
+                      : 'text-[#575652] hover:bg-[#F4F3EE] hover:text-[#141413]'
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  {active && <Check className="h-3.5 w-3.5 text-[#D13B27]" />}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
