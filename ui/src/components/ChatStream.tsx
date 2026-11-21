@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -50,6 +50,17 @@ function formatClock(ms: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+function classifyToolActivity(name: string): string {
+  const lower = name.toLowerCase()
+  if (lower.includes('read') || lower.includes('view')) return '读取'
+  if (lower.includes('search') || lower.includes('grep') || lower.includes('find')) return '搜索'
+  if (lower.includes('edit') || lower.includes('replace') || lower.includes('write')) return '编辑'
+  if (lower.includes('bash') || lower.includes('shell') || lower.includes('cmd') || lower.includes('terminal')) return '命令'
+  if (lower.includes('web') || lower.includes('fetch')) return '网络'
+  if (lower.includes('subagent') || lower.includes('agent')) return '子代理'
+  return '工具'
+}
+
 function ThinkingBlock({
   text,
   defaultOpen = false,
@@ -61,7 +72,7 @@ function ThinkingBlock({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="my-2 rounded border border-[#D8D5CB] bg-[#FAF9F5]">
+    <div className="my-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -73,8 +84,8 @@ function ThinkingBlock({
             streaming ? 'bg-[#1E4D9B] animate-pulse' : 'bg-transparent'
           }`}
         />
-        <span className="font-mono-tabular text-[11px] uppercase tracking-wider">
-          {streaming ? 'Thinking...' : 'Thinking Trace'}
+        <span className="text-[11px] font-medium">
+          {streaming ? '正在思考...' : '思考过程'}
         </span>
       </button>
       {open && (
@@ -89,18 +100,22 @@ function ThinkingBlock({
 function ToolUseBlock({ name, id, input }: { name: string; id: string; input: unknown }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="my-2 rounded border border-[#D8D5CB] bg-[#FAF9F5]">
+    <div className="my-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between px-3 py-1.5 text-xs text-[#141413] hover:bg-[#ECEAE2]/50"
       >
         <span className="flex items-center gap-2">
-          {open ? <ChevronDown className="h-3.5 w-3.5 text-[#575652]" /> : <ChevronRight className="h-3.5 w-3.5 text-[#575652]" />}
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5 text-[#575652]" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-[#575652]" />
+          )}
           <span className="h-2 w-2 bg-[#141413]" />
-          <span className="font-mono-tabular text-[11px] font-semibold">TOOL · {name}</span>
+          <span className="font-mono-tabular text-[11px] font-semibold">工具 · {name}</span>
         </span>
-        <span className="font-mono-tabular text-[10px] text-[#8A8880]">{id.slice(0, 12)}</span>
+        <span className="font-mono-tabular text-[10px] text-[#8A8880]">{id.slice(0, 10)}</span>
       </button>
       {open && (
         <pre className="font-mono-tabular max-h-72 overflow-auto border-t border-[#D8D5CB] bg-[#ECEAE2] p-3 text-[11px] text-[#141413]">
@@ -123,7 +138,7 @@ function ToolResultBlock({
   const [open, setOpen] = useState(isError)
   return (
     <div
-      className={`my-2 rounded border bg-[#FAF9F5] ${
+      className={`my-1.5 rounded border bg-[#FAF9F5] ${
         isError ? 'border-[#D13B27]/60' : 'border-[#D8D5CB]'
       }`}
     >
@@ -133,15 +148,21 @@ function ToolResultBlock({
         className="flex w-full items-center justify-between px-3 py-1.5 text-xs text-[#141413] hover:bg-[#ECEAE2]/50"
       >
         <span className="flex items-center gap-2">
-          {open ? <ChevronDown className="h-3.5 w-3.5 text-[#575652]" /> : <ChevronRight className="h-3.5 w-3.5 text-[#575652]" />}
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5 text-[#575652]" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-[#575652]" />
+          )}
           <span
             className={`h-2 w-2 rounded-full ${isError ? 'bg-[#D13B27]' : 'bg-[#246A4D]'}`}
           />
-          <span className="font-mono-tabular text-[11px] font-medium">
-            {isError ? 'RESULT · ERROR' : 'RESULT · OK'}
+          <span className="text-[11px] font-medium">
+            {isError ? '输出 · 执行失败' : '输出 · 执行完成'}
           </span>
         </span>
-        <span className="font-mono-tabular text-[10px] text-[#8A8880]">{toolUseId.slice(0, 12)}</span>
+        <span className="font-mono-tabular text-[10px] text-[#8A8880]">
+          {toolUseId.slice(0, 10)}
+        </span>
       </button>
       {open && (
         <pre className="font-mono-tabular max-h-80 overflow-auto border-t border-[#D8D5CB] bg-[#ECEAE2] p-3 text-[11px] whitespace-pre-wrap text-[#141413]">
@@ -180,7 +201,7 @@ function renderBlock(block: UiContentBlock, index: number) {
         <img
           key={index}
           src={block.dataUrl}
-          alt="attachment"
+          alt="图片附件"
           className="my-2 max-h-64 rounded border border-[#D8D5CB] object-contain"
         />
       )
@@ -196,38 +217,125 @@ function renderBlock(block: UiContentBlock, index: number) {
   }
 }
 
-function MessageRow({ message }: { message: UiMessage }) {
-  if (message.role === 'user') {
-    return (
-      <article className="border-l-[2.5px] border-[#D13B27] pl-4 py-0.5">
-        <div className="mb-1 flex items-center gap-2 font-mono-tabular text-[10px] uppercase tracking-[0.12em] text-[#8A8880]">
-          <span className="font-semibold text-[#D13B27]">Prompt</span>
-          <span>·</span>
-          <span>{formatClock(message.timestamp)}</span>
-        </div>
-        <div className="text-[15px] font-medium leading-relaxed text-[#141413]">
-          {message.blocks.map((block, idx) => renderBlock(block, idx))}
-        </div>
-      </article>
-    )
-  }
+function ProcessGroupDisclosure({ blocks }: { blocks: UiContentBlock[] }) {
+  const [open, setOpen] = useState(false)
 
-  if (message.isError || message.role === 'system') {
-    return (
-      <div className="flex items-start gap-2.5 rounded border border-[#D13B27]/50 bg-[#D13B27]/6 px-4 py-3 text-xs text-[#8f2214]">
-        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#D13B27]" />
-        <div className="min-w-0 flex-1">
-          {message.blocks.map((block, idx) => renderBlock(block, idx))}
-        </div>
-      </div>
-    )
-  }
+  const summaryParts = useMemo(() => {
+    const counts = new Map<string, number>()
+    let hasError = false
+    for (const block of blocks) {
+      if (block.type === 'thinking') {
+        counts.set('思考', (counts.get('思考') ?? 0) + 1)
+      } else if (block.type === 'toolUse') {
+        const cat = classifyToolActivity(block.name)
+        counts.set(cat, (counts.get(cat) ?? 0) + 1)
+      } else if (block.type === 'toolResult' && block.isError) {
+        hasError = true
+      }
+    }
+    const items = Array.from(counts.entries()).map(([k, v]) => `${k} ${v}`)
+    return { items, hasError }
+  }, [blocks])
 
   return (
-    <article className="space-y-1.5 pl-4">
-      {message.blocks.map((block, idx) => renderBlock(block, idx))}
-    </article>
+    <div className="mb-2.5 rounded-md border border-[#D8D5CB] bg-[#ECEAE2]/55">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+      >
+        <span className="flex items-center gap-2">
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          <span
+            className={`h-2 w-2 rounded-full ${
+              summaryParts.hasError ? 'bg-[#D13B27]' : 'bg-[#246A4D]'
+            }`}
+          />
+          <span className="font-medium text-[#141413]">执行过程</span>
+          <span className="text-[11px] text-[#575652]">
+            {summaryParts.items.length > 0 ? summaryParts.items.join(' · ') : `${blocks.length} 步`}
+          </span>
+        </span>
+        <span className="text-[11px] text-[#8A8880]">{open ? '收起' : '展开详情'}</span>
+      </button>
+      {open && (
+        <div className="border-t border-[#D8D5CB] bg-[#F4F3EE]/70 px-3 py-2">
+          {blocks.map((block, idx) => renderBlock(block, idx))}
+        </div>
+      )}
+    </div>
   )
+}
+
+interface TurnGroup {
+  id: string
+  kind: 'user' | 'agent' | 'system'
+  timestamp: number
+  userMessage?: UiMessage
+  systemMessage?: UiMessage
+  processBlocks: UiContentBlock[]
+  finalBlocks: UiContentBlock[]
+}
+
+function groupMessagesIntoTurns(messages: UiMessage[]): TurnGroup[] {
+  const groups: TurnGroup[] = []
+  let currentAgent: TurnGroup | null = null
+
+  const flushAgent = () => {
+    if (currentAgent) {
+      groups.push(currentAgent)
+      currentAgent = null
+    }
+  }
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      flushAgent()
+      groups.push({
+        id: msg.id,
+        kind: 'user',
+        timestamp: msg.timestamp,
+        userMessage: msg,
+        processBlocks: [],
+        finalBlocks: [],
+      })
+      continue
+    }
+
+    if (msg.isError || msg.role === 'system') {
+      flushAgent()
+      groups.push({
+        id: msg.id,
+        kind: 'system',
+        timestamp: msg.timestamp,
+        systemMessage: msg,
+        processBlocks: [],
+        finalBlocks: [],
+      })
+      continue
+    }
+
+    if (!currentAgent) {
+      currentAgent = {
+        id: msg.id,
+        kind: 'agent',
+        timestamp: msg.timestamp,
+        processBlocks: [],
+        finalBlocks: [],
+      }
+    }
+
+    for (const block of msg.blocks) {
+      if (block.type === 'thinking' || block.type === 'toolUse' || block.type === 'toolResult') {
+        currentAgent.processBlocks.push(block)
+      } else {
+        currentAgent.finalBlocks.push(block)
+      }
+    }
+  }
+
+  flushAgent()
+  return groups
 }
 
 const QUICK_STARTS = [
@@ -264,6 +372,7 @@ export function ChatStream() {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : []
+  const turnGroups = useMemo(() => groupMessagesIntoTurns(messages), [messages])
   const streaming = activeSessionId ? streamingBySession[activeSessionId] : undefined
   const isLoadingHistory = Boolean(activeSessionId && loadingHistoryId === activeSessionId)
   const sessionApprovals = approvals.filter(
@@ -274,6 +383,15 @@ export function ChatStream() {
   )
   const subagents = activeSessionId ? (subagentsBySession[activeSessionId] ?? []) : []
   const totalModels = providers.reduce((acc, p) => acc + p.models.length, 0)
+
+  const workerStatusText =
+    workerStatus.state === 'ready'
+      ? '后端就绪'
+      : workerStatus.state === 'starting'
+        ? '正在启动'
+        : workerStatus.state === 'error'
+          ? '后端异常'
+          : '未连接'
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -287,9 +405,9 @@ export function ChatStream() {
 
   if (isLoadingHistory && messages.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center gap-2 font-mono-tabular text-xs text-[#575652]">
+      <div className="flex flex-1 items-center justify-center gap-2 text-xs text-[#575652]">
         <Loader2 className="h-4 w-4 animate-spin text-[#D13B27]" />
-        LOADING SESSION TRANSCRIPT...
+        正在加载历史对话...
       </div>
     )
   }
@@ -315,12 +433,12 @@ export function ChatStream() {
           </div>
 
           <h2 className="font-editorial text-3xl font-semibold tracking-tight text-[#141413]">
-            DSH Studio
+            DSH 工作台
           </h2>
 
-          <p className="font-mono-tabular mt-2 text-[11px] uppercase tracking-[0.14em] text-[#575652]">
-            dsh --profile sdk · {workerStatus.state.toUpperCase()}
-            {totalModels > 0 ? ` · ${totalModels} MODELS` : ''}
+          <p className="mt-2 text-xs tracking-wide text-[#575652]">
+            本地直连模式 · {workerStatusText}
+            {totalModels > 0 ? ` · 可用模型 ${totalModels} 个` : ''}
           </p>
 
           <div className="mt-7 w-full">
@@ -355,24 +473,83 @@ export function ChatStream() {
   return (
     <>
       <div className="flex-1 overflow-y-auto px-6 py-7">
-        <div className="mx-auto max-w-[780px] space-y-7">
-          {messages.map((msg) => (
-            <MessageRow key={msg.id} message={msg} />
-          ))}
+        <div className="mx-auto max-w-[820px] space-y-6">
+          {turnGroups.map((group) => {
+            if (group.kind === 'user' && group.userMessage) {
+              return (
+                <div key={group.id} className="flex justify-end">
+                  <article className="max-w-[78%] rounded-lg border border-[#D8D5CB] border-r-[3px] border-r-[#D13B27] bg-[#FAF9F5] px-4 py-3">
+                    <div className="mb-1.5 flex items-center justify-end gap-2 text-[11px] text-[#8A8880]">
+                      <span className="font-mono-tabular">{formatClock(group.timestamp)}</span>
+                      <span>·</span>
+                      <span className="font-semibold text-[#D13B27]">用户</span>
+                      <span className="h-1.5 w-1.5 bg-[#D13B27]" />
+                    </div>
+                    <div className="text-[14.5px] leading-relaxed text-[#141413]">
+                      {group.userMessage.blocks.map((block, idx) => renderBlock(block, idx))}
+                    </div>
+                  </article>
+                </div>
+              )
+            }
+
+            if (group.kind === 'system' && group.systemMessage) {
+              return (
+                <div
+                  key={group.id}
+                  className="flex items-start gap-2.5 rounded border border-[#D13B27]/50 bg-[#D13B27]/6 px-4 py-3 text-xs text-[#8f2214]"
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#D13B27]" />
+                  <div className="min-w-0 flex-1">
+                    {group.systemMessage.blocks.map((block, idx) => renderBlock(block, idx))}
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div key={group.id} className="flex justify-start">
+                <article className="w-full max-w-[92%] border-l-[2px] border-[#141413] pl-4">
+                  <div className="mb-2 flex items-center gap-2 text-[11px] text-[#8A8880]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#141413]" />
+                    <span className="font-semibold text-[#141413]">助手</span>
+                    <span>·</span>
+                    <span className="font-mono-tabular">{formatClock(group.timestamp)}</span>
+                  </div>
+
+                  {group.processBlocks.length > 0 && (
+                    <ProcessGroupDisclosure blocks={group.processBlocks} />
+                  )}
+
+                  {group.finalBlocks.length > 0 && (
+                    <div className="space-y-1.5">
+                      {group.finalBlocks.map((block, idx) => renderBlock(block, idx))}
+                    </div>
+                  )}
+                </article>
+              </div>
+            )
+          })}
 
           {(streaming?.thinking || streaming?.text) && (
-            <div className="space-y-2 pl-4">
-              {streaming.thinking && (
-                <ThinkingBlock text={streaming.thinking} defaultOpen streaming />
-              )}
-              {streaming.text && (
-                <div className="markdown-body text-[14.5px]">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                    {streaming.text}
-                  </ReactMarkdown>
-                  <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-[#D13B27] align-middle" />
+            <div className="flex justify-start">
+              <article className="w-full max-w-[92%] border-l-[2px] border-[#1E4D9B] pl-4">
+                <div className="mb-2 flex items-center gap-2 text-[11px] text-[#8A8880]">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1E4D9B]" />
+                  <span className="font-semibold text-[#1E4D9B]">助手（生成中）</span>
                 </div>
-              )}
+                {streaming.thinking && (
+                  <ThinkingBlock text={streaming.thinking} defaultOpen streaming />
+                )}
+                {streaming.text && (
+                  <div className="markdown-body text-[14.5px]">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                      {streaming.text}
+                    </ReactMarkdown>
+                    <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-[#D13B27] align-middle" />
+                  </div>
+                )}
+              </article>
             </div>
           )}
 
@@ -381,14 +558,15 @@ export function ChatStream() {
               {subagents.map((sa) => (
                 <div
                   key={sa.childSessionId}
-                  className="font-mono-tabular inline-flex items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2.5 py-1 text-[11px] text-[#575652]"
+                  className="inline-flex items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2.5 py-1 text-[11px] text-[#575652]"
                 >
                   <span
                     className={`h-1.5 w-1.5 rotate-45 ${
                       sa.kind === 'started' ? 'bg-[#1E4D9B] animate-pulse' : 'bg-[#246A4D]'
                     }`}
                   />
-                  SUBAGENT {sa.childSessionId.slice(0, 8)} · {(sa.status ?? sa.kind).toUpperCase()}
+                  子代理 {sa.childSessionId.slice(0, 8)} ·{' '}
+                  {sa.kind === 'started' ? '运行中' : sa.status === 'ok' ? '已完成' : '异常'}
                 </div>
               ))}
             </div>
@@ -403,9 +581,9 @@ export function ChatStream() {
           ))}
 
           {activeSession?.status === 'running' && !streaming?.text && !streaming?.thinking && (
-            <div className="flex items-center gap-2 pl-4 font-mono-tabular text-[11px] uppercase tracking-wider text-[#575652]">
+            <div className="flex items-center gap-2 pl-4 text-xs text-[#575652]">
               <span className="h-2 w-2 animate-pulse bg-[#D13B27]" />
-              Executing...
+              助手正在执行...
             </div>
           )}
 
