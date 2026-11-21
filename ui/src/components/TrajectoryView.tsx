@@ -13,6 +13,8 @@ interface TraceStep {
   title: string
   summary: string
   timestamp: number
+  offsetMs: number
+  durationMs: number
   callId?: string
   status?: 'ok' | 'error' | 'running'
   input?: unknown
@@ -27,6 +29,7 @@ interface TraceTurn {
   promptFull: string
   timestamp: number
   endTimestamp: number
+  totalDurationMs: number
   steps: TraceStep[]
   activityCounts: [string, number][]
   hasError: boolean
@@ -53,7 +56,7 @@ function stringifyPretty(value: unknown): string {
   }
 }
 
-function summarizeText(text: string, max = 88): string {
+function summarizeText(text: string, max = 80): string {
   const oneLine = text.replace(/\s+/g, ' ').trim()
   return oneLine.length > max ? `${oneLine.slice(0, max)}…` : oneLine
 }
@@ -64,23 +67,33 @@ function formatClock(ms: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
 
-function formatDuration(startMs: number, endMs: number): string {
-  if (!startMs || !endMs || endMs <= startMs) return ''
-  const secs = (endMs - startMs) / 1000
-  if (secs < 60) return `${secs.toFixed(1)} 秒`
+function formatMs(ms: number): string {
+  if (ms <= 0) return '<0.1s'
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  const secs = ms / 1000
+  if (secs < 60) return `${secs.toFixed(2)}s`
   const mins = Math.floor(secs / 60)
   const rem = Math.round(secs % 60)
-  return `${mins} 分 ${rem} 秒`
+  return `${mins}m${rem}s`
+}
+
+function stepBarColor(step: TraceStep): string {
+  if (step.kind === 'error' || step.status === 'error') return '#D13B27'
+  if (step.kind === 'thinking') return '#1E4D9B'
+  if (step.kind === 'tool') return '#C4881C'
+  if (step.kind === 'subagent') return '#575652'
+  return '#246A4D'
 }
 
 function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTurn[] {
-  const resultByCallId = new Map<string, { content: unknown; isError: boolean }>()
+  const resultByCallId = new Map<string, { content: unknown; isError: boolean; timestamp: number }>()
   for (const msg of messages) {
     for (const block of msg.blocks) {
       if (block.type === 'toolResult') {
         resultByCallId.set(block.toolUseId, {
           content: block.content,
           isError: block.isError,
+          timestamp: msg.timestamp,
         })
       }
     }
@@ -100,6 +113,7 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
         promptFull: '',
         timestamp,
         endTimestamp: timestamp,
+        totalDurationMs: 0,
         steps: [],
         activityCounts: [],
         hasError: false,
@@ -111,10 +125,7 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
 
   for (const msg of messages) {
     if (msg.role === 'user') {
-      const text = msg.blocks
-        .filter((b) => b.type === 'text')
-        .map((b) => b.text)
-        .join('\n')
+      const text = msg.blocks.filter((b) => b.type === 'text').map((b) => b.text).join('\n')
       const turnNumber = turns.length + 1
       current = {
         turnNumber,
@@ -123,6 +134,7 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
         promptFull: text,
         timestamp: msg.timestamp,
         endTimestamp: msg.timestamp,
+        totalDurationMs: 0,
         steps: [],
         activityCounts: [],
         hasError: false,
@@ -132,15 +144,10 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
     }
 
     const turn = ensureTurn(msg.timestamp)
-    if (msg.timestamp > turn.endTimestamp) {
-      turn.endTimestamp = msg.timestamp
-    }
+    if (msg.timestamp > turn.endTimestamp) turn.endTimestamp = msg.timestamp
 
     if (msg.isError || msg.role === 'system') {
-      const text = msg.blocks
-        .filter((b) => b.type === 'text')
-        .map((b) => b.text)
-        .join('\n')
+      const text = msg.blocks.filter((b) => b.type === 'text').map((b) => b.text).join('\n')
       turn.hasError = true
       turn.steps.push({
         id: `err-${msg.id}`,
@@ -150,6 +157,8 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
         title: '执行异常',
         summary: summarizeText(text || '请求或工具调用失败'),
         timestamp: msg.timestamp,
+        offsetMs: 0,
+        durationMs: 0,
         status: 'error',
         textBody: text,
       })
@@ -167,6 +176,8 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
           title: '推理思考',
           summary: summarizeText(block.thinking),
           timestamp: msg.timestamp,
+          offsetMs: 0,
+          durationMs: 0,
           textBody: block.thinking,
         })
       } else if (block.type === 'toolUse') {
@@ -174,6 +185,9 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
         const cat = classifyTool(block.name)
         const isErr = Boolean(matched?.isError)
         if (isErr) turn.hasError = true
+        const exactDur =
+          matched && matched.timestamp > msg.timestamp ? matched.timestamp - msg.timestamp : 0
+        if (matched && matched.timestamp > turn.endTimestamp) turn.endTimestamp = matched.timestamp
         turn.steps.push({
           id: `${msg.id}-tool-${block.id}-${i}`,
           stepLabel: `步 ${pad(turn.steps.length + 1)}`,
@@ -182,6 +196,8 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
           title: `${cat} · ${block.name}`,
           summary: summarizeText(stringifyPretty(block.input) || '无参数'),
           timestamp: msg.timestamp,
+          offsetMs: 0,
+          durationMs: exactDur,
           callId: block.id,
           status: matched ? (isErr ? 'error' : 'ok') : 'running',
           input: block.input,
@@ -196,6 +212,8 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
           title: '助手回复',
           summary: summarizeText(block.text),
           timestamp: msg.timestamp,
+          offsetMs: 0,
+          durationMs: 0,
           status: 'ok',
           textBody: block.text,
         })
@@ -215,7 +233,9 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
         summary: sa.stopReason
           ? `状态：${sa.status ?? sa.kind} · 原因：${sa.stopReason}`
           : `状态：${sa.kind === 'started' ? '运行中' : (sa.status ?? sa.kind)}`,
-        timestamp: Date.now(),
+        timestamp: target.endTimestamp || Date.now(),
+        offsetMs: 0,
+        durationMs: 0,
         status: sa.kind === 'started' ? 'running' : sa.status === 'ok' ? 'ok' : 'error',
         input: sa,
       })
@@ -225,10 +245,39 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
   for (const turn of turns) {
     const counts = new Map<string, number>()
     for (const step of turn.steps) {
-      if (step.kind === 'response') continue
-      counts.set(step.category, (counts.get(step.category) ?? 0) + 1)
+      if (step.kind !== 'response') counts.set(step.category, (counts.get(step.category) ?? 0) + 1)
     }
     turn.activityCounts = Array.from(counts.entries())
+
+    const baseStart = turn.timestamp
+    let cursor = baseStart
+    for (let i = 0; i < turn.steps.length; i += 1) {
+      const step = turn.steps[i]
+      const nextStep = turn.steps[i + 1]
+      const stepStart = Math.max(cursor, step.timestamp || cursor)
+      let dur = step.durationMs
+      if (dur <= 0) {
+        if (step.timestamp > cursor) {
+          dur = step.timestamp - cursor
+          step.offsetMs = Math.max(0, cursor - baseStart)
+          cursor = step.timestamp
+        } else if (nextStep && nextStep.timestamp > stepStart) {
+          dur = nextStep.timestamp - stepStart
+          step.offsetMs = Math.max(0, stepStart - baseStart)
+          cursor = stepStart + dur
+        } else {
+          dur = Math.max(120, Math.min(1200, (step.textBody?.length ?? step.summary.length) * 3))
+          step.offsetMs = Math.max(0, cursor - baseStart)
+          cursor += dur
+        }
+      } else {
+        step.offsetMs = Math.max(0, stepStart - baseStart)
+        cursor = Math.max(cursor, stepStart + dur)
+      }
+      step.durationMs = dur
+    }
+
+    turn.totalDurationMs = Math.max(turn.endTimestamp - baseStart, cursor - baseStart, 1)
   }
 
   return turns
@@ -245,17 +294,17 @@ function StepGlyph({ step }: { step: TraceStep }) {
             step.status === 'error'
               ? 'bg-[#D13B27]'
               : step.status === 'ok'
-                ? 'bg-[#246A4D]'
+                ? 'bg-[#C4881C]'
                 : 'bg-[#C4881C] animate-pulse'
           }`}
         />
       )
     case 'subagent':
-      return <span className="h-2.5 w-2.5 rotate-45 bg-[#1E4D9B]" />
+      return <span className="h-2.5 w-2.5 rotate-45 bg-[#575652]" />
     case 'error':
       return <span className="h-2.5 w-2.5 bg-[#D13B27]" />
     case 'response':
-      return <span className="h-2.5 w-2.5 rounded-full bg-[#141413]" />
+      return <span className="h-2.5 w-2.5 rounded-full bg-[#246A4D]" />
   }
 }
 
@@ -273,7 +322,6 @@ export function TrajectoryView() {
   const subagents = activeSessionId ? (subagentsBySession[activeSessionId] ?? []) : []
 
   const allTurns = useMemo(() => buildTurns(messages, subagents), [messages, subagents])
-
   const allSteps = useMemo(() => allTurns.flatMap((t) => t.steps), [allTurns])
 
   const counts = useMemo(
@@ -286,6 +334,21 @@ export function TrajectoryView() {
     }),
     [allSteps],
   )
+
+  const durationSummary = useMemo(() => {
+    let thinking = 0
+    let tool = 0
+    let response = 0
+    let subagent = 0
+    for (const s of allSteps) {
+      if (s.kind === 'thinking') thinking += s.durationMs
+      else if (s.kind === 'tool') tool += s.durationMs
+      else if (s.kind === 'subagent') subagent += s.durationMs
+      else if (s.kind === 'response') response += s.durationMs
+    }
+    const total = Math.max(1, thinking + tool + response + subagent)
+    return { thinking, tool, response, subagent, total }
+  }, [allSteps])
 
   const filteredTurns = useMemo(() => {
     if (filter === 'all') return allTurns
@@ -300,7 +363,6 @@ export function TrajectoryView() {
   }, [allTurns, filter])
 
   const visibleSteps = useMemo(() => filteredTurns.flatMap((t) => t.steps), [filteredTurns])
-
   const selectedStep =
     visibleSteps.find((s) => s.id === selectedStepId) ??
     visibleSteps[visibleSteps.length - 1] ??
@@ -314,9 +376,7 @@ export function TrajectoryView() {
 
   const toggleAllTurns = (collapse: boolean) => {
     const next: Record<string, boolean> = {}
-    for (const turn of allTurns) {
-      next[turn.id] = collapse
-    }
+    for (const turn of allTurns) next[turn.id] = collapse
     setCollapsedTurns(next)
   }
 
@@ -328,16 +388,11 @@ export function TrajectoryView() {
     { id: 'error', label: '错误', count: counts.error },
   ]
 
-  const statusText = (status?: 'ok' | 'error' | 'running') => {
-    if (status === 'ok') return '成功'
-    if (status === 'error') return '失败'
-    if (status === 'running') return '执行中'
-    return ''
-  }
+  const statusText = (status?: 'ok' | 'error' | 'running') =>
+    status === 'ok' ? '成功' : status === 'error' ? '失败' : status === 'running' ? '执行中' : ''
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#F4F3EE]">
-      {/* 过滤与汇总栏 */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D8D5CB] bg-[#FAF9F5]/85 px-5 py-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {filterTabs.map((tab) => {
@@ -387,6 +442,64 @@ export function TrajectoryView() {
         </div>
       </div>
 
+      {/* 全局流水线耗时构成条 */}
+      {allSteps.length > 0 && (
+        <div className="border-b border-[#D8D5CB] bg-[#FAF9F5] px-5 py-2.5">
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <div className="flex flex-wrap items-center gap-4 text-[#575652]">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#1E4D9B]" />
+                思考 {formatMs(durationSummary.thinking)}（{Math.round((durationSummary.thinking / durationSummary.total) * 100)}%）
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 bg-[#C4881C]" />
+                工具调用 {formatMs(durationSummary.tool)}（{Math.round((durationSummary.tool / durationSummary.total) * 100)}%）
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#246A4D]" />
+                回复 {formatMs(durationSummary.response)}（{Math.round((durationSummary.response / durationSummary.total) * 100)}%）
+              </span>
+              {durationSummary.subagent > 0 && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rotate-45 bg-[#575652]" />
+                  子代理 {formatMs(durationSummary.subagent)}
+                </span>
+              )}
+            </div>
+            <span className="font-mono-tabular text-[#8A8880]">
+              总耗时估算 {formatMs(durationSummary.total)}
+            </span>
+          </div>
+
+          <div className="flex h-2 w-full overflow-hidden rounded-sm bg-[#ECEAE2]">
+            {durationSummary.thinking > 0 && (
+              <div
+                style={{ width: `${(durationSummary.thinking / durationSummary.total) * 100}%` }}
+                className="bg-[#1E4D9B]"
+              />
+            )}
+            {durationSummary.tool > 0 && (
+              <div
+                style={{ width: `${(durationSummary.tool / durationSummary.total) * 100}%` }}
+                className="bg-[#C4881C]"
+              />
+            )}
+            {durationSummary.response > 0 && (
+              <div
+                style={{ width: `${(durationSummary.response / durationSummary.total) * 100}%` }}
+                className="bg-[#246A4D]"
+              />
+            )}
+            {durationSummary.subagent > 0 && (
+              <div
+                style={{ width: `${(durationSummary.subagent / durationSummary.total) * 100}%` }}
+                className="bg-[#575652]"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
       {filteredTurns.length === 0 ? (
         <div className="bauhaus-dot-grid flex flex-1 flex-col items-center justify-center px-6 text-center">
           <div className="rounded-lg border border-[#D8D5CB] bg-[#FAF9F5] px-8 py-6">
@@ -398,11 +511,10 @@ export function TrajectoryView() {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-4 p-4">
-          {/* 左 60%：按回合分组的 dsh web 风格执行轨迹 */}
           <div className="min-w-0 flex-[3] space-y-3 overflow-y-auto pr-1">
             {filteredTurns.map((turn) => {
               const collapsed = Boolean(collapsedTurns[turn.id])
-              const duration = formatDuration(turn.timestamp, turn.endTimestamp)
+              const turnTotal = Math.max(1, turn.totalDurationMs)
               return (
                 <section
                   key={turn.id}
@@ -413,102 +525,134 @@ export function TrajectoryView() {
                     onClick={() =>
                       setCollapsedTurns((prev) => ({ ...prev, [turn.id]: !prev[turn.id] }))
                     }
-                    className="flex w-full items-start justify-between gap-3 bg-[#ECEAE2]/55 px-3.5 py-2.5 text-left transition hover:bg-[#ECEAE2]"
+                    className="flex w-full flex-col gap-2 bg-[#ECEAE2]/55 px-3.5 py-2.5 text-left transition hover:bg-[#ECEAE2]"
                   >
-                    <div className="flex min-w-0 items-start gap-2">
-                      {collapsed ? (
-                        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#575652]" />
-                      ) : (
-                        <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-[#575652]" />
-                      )}
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono-tabular rounded bg-[#141413] px-1.5 py-0.5 text-[10px] font-semibold text-[#FAF9F5]">
-                            第 {String(turn.turnNumber).padStart(2, '0')} 回合
-                          </span>
-                          <span className="truncate text-xs font-semibold text-[#141413]">
-                            {turn.promptPreview}
-                          </span>
-                        </div>
-                        {turn.activityCounts.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            {turn.activityCounts.map(([cat, cnt]) => (
-                              <span
-                                key={cat}
-                                className="font-mono-tabular rounded border border-[#D8D5CB] bg-[#FAF9F5] px-1.5 py-0.5 text-[10px] text-[#575652]"
-                              >
-                                {cat} ×{cnt}
-                              </span>
-                            ))}
-                          </div>
+                    <div className="flex w-full items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-2">
+                        {collapsed ? (
+                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#575652]" />
+                        ) : (
+                          <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-[#575652]" />
                         )}
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono-tabular rounded bg-[#141413] px-1.5 py-0.5 text-[10px] font-semibold text-[#FAF9F5]">
+                              第 {String(turn.turnNumber).padStart(2, '0')} 回合
+                            </span>
+                            <span className="truncate text-xs font-semibold text-[#141413]">
+                              {turn.promptPreview}
+                            </span>
+                          </div>
+                          {turn.activityCounts.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {turn.activityCounts.map(([cat, cnt]) => (
+                                <span
+                                  key={cat}
+                                  className="font-mono-tabular rounded border border-[#D8D5CB] bg-[#FAF9F5] px-1.5 py-0.5 text-[10px] text-[#575652]"
+                                >
+                                  {cat} ×{cnt}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="font-mono-tabular shrink-0 text-right text-[10px] text-[#8A8880]">
+                        <div>{formatClock(turn.timestamp)}</div>
+                        <div className="mt-0.5 font-semibold text-[#141413]">
+                          {formatMs(turnTotal)}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="font-mono-tabular shrink-0 text-right text-[10px] text-[#8A8880]">
-                      <div>{formatClock(turn.timestamp)}</div>
-                      {duration && <div className="mt-0.5 text-[#575652]">耗时 {duration}</div>}
-                    </div>
+                    {turn.steps.length > 0 && (
+                      <div className="flex h-1.5 w-full overflow-hidden rounded-sm bg-[#D8D5CB]/70">
+                        {turn.steps.map((step) => (
+                          <div
+                            key={step.id}
+                            style={{
+                              width: `${Math.max(2, (step.durationMs / turnTotal) * 100)}%`,
+                              backgroundColor: stepBarColor(step),
+                            }}
+                            className="h-full border-r border-[#FAF9F5]/60 last:border-r-0"
+                            title={`${step.title} · ${formatMs(step.durationMs)}`}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </button>
 
                   {!collapsed && (
                     <div className="border-t border-[#D8D5CB] bg-[#F4F3EE]/50 px-3.5 py-2.5">
-                      <div className="relative pl-5">
-                        <div className="pointer-events-none absolute bottom-2 left-[7px] top-2 w-px bg-[#D8D5CB]" />
-                        <ul className="space-y-1.5">
-                          {turn.steps.map((step) => {
-                            const selected = selectedStep?.id === step.id
-                            return (
-                              <li key={step.id} className="relative">
-                                <span className="pointer-events-none absolute -left-[18px] top-3 flex h-3 w-3 items-center justify-center">
-                                  <StepGlyph step={step} />
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedStepId(step.id)}
-                                  className={`flex w-full items-center justify-between gap-3 rounded border px-3 py-2 text-left transition ${
-                                    selected
-                                      ? 'border-[#1E4D9B] border-l-[3px] bg-[#FAF9F5]'
-                                      : 'border-[#D8D5CB] bg-[#FAF9F5]/80 hover:border-[#8A8880] hover:bg-[#FAF9F5]'
-                                  }`}
-                                >
-                                  <div className="flex min-w-0 items-center gap-2.5">
-                                    <span className="font-mono-tabular w-11 shrink-0 text-[10px] font-semibold text-[#8A8880]">
+                      <ul className="space-y-1.5">
+                        {turn.steps.map((step) => {
+                          const selected = selectedStep?.id === step.id
+                          const leftPct = Math.min(92, (step.offsetMs / turnTotal) * 100)
+                          const widthPct = Math.max(
+                            4,
+                            Math.min(100 - leftPct, (step.durationMs / turnTotal) * 100),
+                          )
+                          const sharePct = Math.round((step.durationMs / turnTotal) * 100)
+
+                          return (
+                            <li key={step.id}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedStepId(step.id)}
+                                className={`flex w-full flex-col gap-1.5 rounded border px-3 py-2 text-left transition ${
+                                  selected
+                                    ? 'border-[#1E4D9B] border-l-[3px] bg-[#FAF9F5]'
+                                    : 'border-[#D8D5CB] bg-[#FAF9F5]/80 hover:border-[#8A8880] hover:bg-[#FAF9F5]'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <StepGlyph step={step} />
+                                    <span className="font-mono-tabular shrink-0 text-[10px] font-semibold text-[#8A8880]">
                                       {step.stepLabel}
                                     </span>
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <span className="truncate text-xs font-semibold text-[#141413]">
-                                          {step.title}
-                                        </span>
-                                        {step.status && (
-                                          <span
-                                            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                                              step.status === 'error'
-                                                ? 'bg-[#D13B27]/12 text-[#D13B27]'
-                                                : step.status === 'ok'
-                                                  ? 'bg-[#246A4D]/12 text-[#246A4D]'
-                                                  : 'bg-[#C4881C]/15 text-[#8E6210]'
-                                            }`}
-                                          >
-                                            {statusText(step.status)}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="mt-0.5 truncate text-[11px] text-[#575652]">
-                                        {step.summary}
-                                      </p>
-                                    </div>
+                                    <span className="truncate text-xs font-semibold text-[#141413]">
+                                      {step.title}
+                                    </span>
+                                    {step.status && (
+                                      <span
+                                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                          step.status === 'error'
+                                            ? 'bg-[#D13B27]/12 text-[#D13B27]'
+                                            : step.status === 'ok'
+                                              ? 'bg-[#246A4D]/12 text-[#246A4D]'
+                                              : 'bg-[#C4881C]/15 text-[#8E6210]'
+                                        }`}
+                                      >
+                                        {statusText(step.status)}
+                                      </span>
+                                    )}
                                   </div>
-                                  <span className="font-mono-tabular shrink-0 text-[10px] text-[#8A8880]">
-                                    {formatClock(step.timestamp)}
+                                  <span className="font-mono-tabular shrink-0 text-[10px] text-[#575652]">
+                                    {formatMs(step.durationMs)} · {sharePct}%
                                   </span>
-                                </button>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </div>
+                                </div>
+
+                                <div className="relative h-2 w-full overflow-hidden rounded-sm bg-[#ECEAE2]">
+                                  <div
+                                    style={{
+                                      left: `${leftPct}%`,
+                                      width: `${widthPct}%`,
+                                      backgroundColor: stepBarColor(step),
+                                    }}
+                                    className="absolute top-0 bottom-0 rounded-sm opacity-90"
+                                  />
+                                </div>
+
+                                <p className="truncate text-[11px] text-[#575652]">
+                                  {step.summary}
+                                </p>
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
                     </div>
                   )}
                 </section>
@@ -516,14 +660,13 @@ export function TrajectoryView() {
             })}
           </div>
 
-          {/* 右 40%：步骤详情检查器 */}
           <div className="flex min-w-0 flex-[2] flex-col overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]">
             {selectedStep ? (
               <>
                 <div className="flex items-center justify-between border-b border-[#D8D5CB] bg-[#F4F3EE]/70 px-4 py-3">
                   <div className="min-w-0">
                     <div className="text-[11px] font-semibold text-[#1E4D9B]">
-                      {selectedStep.stepLabel} · {selectedStep.category}
+                      {selectedStep.stepLabel} · {selectedStep.category} · {formatMs(selectedStep.durationMs)}
                     </div>
                     <h3 className="truncate text-sm font-semibold text-[#141413]">
                       {selectedStep.title}
