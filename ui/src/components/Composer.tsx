@@ -1,5 +1,5 @@
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
-import { FolderOpen, ImagePlus, Send, Square, X } from 'lucide-react'
+import { ArrowUp, FolderOpen, ImagePlus, Square, X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import type { ImageAttachment } from '../types/domain'
 import { ModelSelector } from './ModelSelector'
@@ -26,7 +26,11 @@ function fileToAttachment(file: File): Promise<ImageAttachment> {
   })
 }
 
-export function Composer() {
+interface ComposerProps {
+  centered?: boolean
+}
+
+export function Composer({ centered = false }: ComposerProps) {
   const [text, setText] = useState('')
   const [images, setImages] = useState<ImageAttachment[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -85,21 +89,8 @@ export function Composer() {
   }
 
   return (
-    <div className="border-t border-[#21262d] bg-[#0b0f14] px-6 py-3">
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#8b949e]">
-          <button
-            type="button"
-            onClick={() => void pickAndSetWorkingDirectory()}
-            className="inline-flex max-w-[45%] items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-[#161b22] hover:text-[#e6edf3]"
-            title="点击切换工作目录"
-          >
-            <FolderOpen className="h-3.5 w-3.5 shrink-0 text-blue-400" />
-            <span className="truncate">{cwd || '选择工作目录'}</span>
-          </button>
-          <ModelSelector />
-        </div>
-
+    <div className={centered ? 'w-full max-w-[760px]' : 'shrink-0 px-6 pb-4 pt-2'}>
+      <div className={centered ? 'w-full' : 'mx-auto max-w-[780px]'}>
         {showSlashHints && (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {SLASH_HINTS.filter((h) => h.cmd.startsWith(text)).map((hint) => (
@@ -107,95 +98,114 @@ export function Composer() {
                 key={hint.cmd}
                 type="button"
                 onClick={() => setText(`${hint.cmd} `)}
-                className="rounded-md border border-[#30363d] bg-[#161b22] px-2.5 py-1 text-xs text-[#c9d1d9] hover:border-blue-500"
+                className="rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2.5 py-1 text-xs text-[#141413] transition hover:border-[#1E4D9B]"
               >
-                <span className="font-mono text-blue-400">{hint.cmd}</span>
-                <span className="ml-1.5 text-[#8b949e]">{hint.desc}</span>
+                <span className="font-mono-tabular font-medium text-[#1E4D9B]">{hint.cmd}</span>
+                <span className="ml-1.5 text-[#575652]">{hint.desc}</span>
               </button>
             ))}
           </div>
         )}
 
-        {images.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2">
-            {images.map((img, idx) => (
-              <div
-                key={idx}
-                className="relative overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22]"
-              >
-                <img
-                  src={`data:${img.mimeType};base64,${img.data}`}
-                  alt={img.name ?? 'upload'}
-                  className="h-14 w-14 object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
-                  className="absolute right-0.5 top-0.5 rounded-full bg-black/70 p-0.5 text-white hover:bg-rose-600"
+        <div className="rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] transition focus-within:border-[#141413]">
+          {images.length > 0 && (
+            <div className="flex flex-wrap gap-2 border-b border-[#D8D5CB] px-3 pt-3 pb-2">
+              {images.map((img, idx) => (
+                <div
+                  key={idx}
+                  className="relative overflow-hidden rounded border border-[#D8D5CB] bg-[#ECEAE2]"
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-end gap-2 rounded-xl border border-[#30363d] bg-[#161b22] p-2 focus-within:border-[#58a6ff]">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              void handleFileChange(e.target.files)
-              e.target.value = ''
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            title="附加图片（也支持直接粘贴截图）"
-            className="rounded-lg p-2 text-[#8b949e] transition hover:bg-[#21262d] hover:text-[#e6edf3] disabled:opacity-40"
-          >
-            <ImagePlus className="h-4 w-4" />
-          </button>
+                  <img
+                    src={`data:${img.mimeType};base64,${img.data}`}
+                    alt={img.name ?? 'upload'}
+                    className="h-14 w-14 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
+                    className="absolute right-0.5 top-0.5 rounded bg-[#141413]/80 p-0.5 text-[#FAF9F5] hover:bg-[#D13B27]"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
           <textarea
-            rows={2}
+            rows={centered ? 3 : 2}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={(e) => void handlePaste(e)}
             disabled={disabled}
             placeholder={
-              disabled ? '等待 dsh sdk 后端就绪...' : '输入指令、问题或 /compact 等命令...'
+              disabled ? '等待 dsh sdk 后端就绪...' : '输入指令、技术问题或 /compact 等命令...'
             }
-            className="max-h-40 flex-1 resize-none bg-transparent py-1.5 text-sm text-[#e6edf3] placeholder-[#6e7681] focus:outline-none disabled:opacity-50"
+            className="max-h-44 w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm leading-relaxed text-[#141413] placeholder-[#8A8880] focus:outline-none disabled:opacity-50"
           />
 
-          {canAbort && (
-            <button
-              type="button"
-              onClick={() => void abortSession()}
-              disabled={isAborting}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-rose-600 text-white transition hover:bg-rose-500 disabled:opacity-50"
-              title="停止生成"
-            >
-              <Square className="h-3.5 w-3.5 fill-current" />
-            </button>
-          )}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#ECEAE2] px-3 py-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  void handleFileChange(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled}
+                title="附加图片（也支持直接粘贴截图）"
+                className="rounded border border-[#D8D5CB] bg-[#ECEAE2] p-1 text-[#575652] transition hover:border-[#141413] hover:text-[#141413] disabled:opacity-40"
+              >
+                <ImagePlus className="h-3.5 w-3.5" />
+              </button>
 
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={disabled || (!text.trim() && images.length === 0)}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-[#21262d] disabled:text-[#6e7681]"
-            title="发送"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+              <button
+                type="button"
+                onClick={() => void pickAndSetWorkingDirectory()}
+                className="font-mono-tabular inline-flex max-w-[220px] items-center gap-1 rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 py-0.5 text-[11px] text-[#575652] transition hover:border-[#141413] hover:text-[#141413]"
+                title={cwd || '选择工作目录'}
+              >
+                <FolderOpen className="h-3 w-3 shrink-0 text-[#1E4D9B]" />
+                <span className="truncate">{cwd || '选择工作目录'}</span>
+              </button>
+
+              <ModelSelector />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {canAbort && (
+                <button
+                  type="button"
+                  onClick={() => void abortSession()}
+                  disabled={isAborting}
+                  className="inline-flex h-7 items-center gap-1 rounded bg-[#D13B27] px-2.5 text-xs font-medium text-[#FAF9F5] transition hover:bg-[#b5301f] disabled:opacity-50"
+                  title="停止生成"
+                >
+                  <Square className="h-3 w-3 fill-current" />
+                  停止
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={disabled || (!text.trim() && images.length === 0)}
+                className="inline-flex h-7 w-7 items-center justify-center rounded bg-[#D13B27] text-[#FAF9F5] transition hover:bg-[#b5301f] disabled:cursor-not-allowed disabled:bg-[#ECEAE2] disabled:text-[#8A8880]"
+                title="发送 (Enter)"
+              >
+                <ArrowUp className="h-4 w-4 stroke-[2.2]" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
