@@ -1,0 +1,3 @@
+所有涉及到前端的内容都由antigravity gemini来完成
+
+所有涉及到后端的内容都由codex cli来完成
