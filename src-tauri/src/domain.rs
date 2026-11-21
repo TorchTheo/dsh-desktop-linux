@@ -38,6 +38,21 @@ pub struct SessionSummary {
     pub status: SessionRunStatus,
     pub created_at: u64,
     pub updated_at: u64,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub archived: bool,
+    #[serde(default)]
+    pub persisted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceSummary {
+    pub id: String,
+    pub title: String,
+    pub path: String,
+    pub session_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -46,6 +61,8 @@ pub struct AppStateSnapshot {
     pub config: AppConfig,
     pub worker_status: WorkerStatus,
     pub sessions: Vec<SessionSummary>,
+    #[serde(default)]
+    pub workspaces: Vec<WorkspaceSummary>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -96,6 +113,15 @@ pub struct UiMessage {
     pub blocks: Vec<UiContentBlock>,
     pub timestamp: u64,
     pub is_error: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiSessionDetail {
+    pub session: SessionSummary,
+    pub messages: Vec<UiMessage>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -173,6 +199,26 @@ pub struct SubagentEvent {
 mod tests {
     use super::*;
     use serde_json::{json, to_value};
+
+    #[test]
+    fn existing_snapshots_default_new_storage_fields() {
+        let snapshot: AppStateSnapshot = serde_json::from_value(json!({
+            "config": {},
+            "workerStatus": {"state": "idle"},
+            "sessions": [{
+                "sessionId": "legacy",
+                "title": "Legacy",
+                "cwd": "/work",
+                "status": "idle",
+                "createdAt": 1,
+                "updatedAt": 2
+            }]
+        }))
+        .unwrap();
+        assert!(snapshot.workspaces.is_empty());
+        let session = &snapshot.sessions[0];
+        assert!(!session.pinned && !session.archived && !session.persisted);
+    }
 
     #[test]
     fn worker_status_uses_state_and_camel_case_fields() {

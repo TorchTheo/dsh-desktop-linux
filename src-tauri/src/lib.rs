@@ -4,6 +4,7 @@ pub mod domain;
 pub mod logging;
 pub mod protocol;
 mod state;
+pub mod storage;
 
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};

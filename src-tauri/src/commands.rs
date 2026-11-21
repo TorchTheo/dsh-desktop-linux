@@ -50,6 +50,9 @@ pub(crate) async fn create_session(
         status: SessionRunStatus::Idle,
         created_at: now,
         updated_at: now,
+        pinned: false,
+        archived: false,
+        persisted: false,
     };
     state.sessions.write().unwrap().push(session.clone());
     Ok(session)

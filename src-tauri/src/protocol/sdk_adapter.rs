@@ -575,6 +575,20 @@ fn project_message(
     data: &Value,
     role: &str,
 ) -> Option<UiSessionEvent> {
+    let message = decode_message(session_id, event, data, role, None)?;
+    Some(UiSessionEvent::Message {
+        session_id: session_id.to_owned(),
+        message,
+    })
+}
+
+pub(crate) fn decode_message(
+    session_id: &str,
+    event: &Value,
+    data: &Value,
+    role: &str,
+    line_number: Option<usize>,
+) -> Option<UiMessage> {
     let message = data
         .get("message")
         .filter(|message| message.is_object())
@@ -618,18 +632,18 @@ fn project_message(
         .map(str::to_owned)
         .unwrap_or_else(|| {
             // SDK envelopes have a stable per-session sequence even without a message id.
-            let sequence = event["seq"].as_u64().unwrap_or(timestamp);
+            let sequence = event["seq"]
+                .as_u64()
+                .or(line_number.map(|line| line as u64))
+                .unwrap_or(timestamp);
             format!("{session_id}:{role}:{sequence}")
         });
-    Some(UiSessionEvent::Message {
-        session_id: session_id.to_owned(),
-        message: UiMessage {
-            id,
-            role: role.to_owned(),
-            blocks,
-            timestamp,
-            is_error,
-        },
+    Some(UiMessage {
+        id,
+        role: role.to_owned(),
+        blocks,
+        timestamp,
+        is_error,
     })
 }
 

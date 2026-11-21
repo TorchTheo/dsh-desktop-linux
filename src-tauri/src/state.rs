@@ -40,6 +40,7 @@ impl AppState {
             config: self.config.read().unwrap().clone(),
             worker_status: self.worker_status.read().unwrap().clone(),
             sessions: self.sessions.read().unwrap().clone(),
+            workspaces: Vec::new(),
         }
     }
 
