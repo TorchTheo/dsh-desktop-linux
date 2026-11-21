@@ -156,6 +156,8 @@ export interface AppStateSnapshot {
   workspaces: WorkspaceSummary[]
   bridgeCapabilities: BridgeCapabilities
   hostInfo?: HostRuntimeInfo | null
+  pendingApprovals?: ApprovalRequestEvent[]
+  pendingQuestions?: UserQuestionRequestEvent[]
 }
 
 export interface ImageAttachment {

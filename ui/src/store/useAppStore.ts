@@ -442,6 +442,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         workspaces: snapshot.workspaces ?? [],
         sessions: snapshot.sessions,
         activeSessionId: initialId,
+        approvals: snapshot.pendingApprovals ?? [],
+        questions: snapshot.pendingQuestions ?? [],
       })
       if (caps.modelControl) {
         void get().fetchModels()
