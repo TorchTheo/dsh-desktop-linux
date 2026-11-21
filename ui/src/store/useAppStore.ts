@@ -30,6 +30,13 @@ export interface SessionMeta {
 
 export type ActiveView = 'studio' | 'trajectory' | 'plugins' | 'plugin-panel'
 
+export interface QueuedMessage {
+  id: string
+  text: string
+  images: ImageAttachment[]
+  createdAt: number
+}
+
 export interface StreamingDraft {
   thinking: string
   text: string
@@ -75,6 +82,7 @@ interface AppStore {
   composerDraft: string | null
   noticeBanner: string | null
   streamingBySession: Record<string, StreamingDraft>
+  queuedMessagesBySession: Record<string, QueuedMessage[]>
   messagesBySession: Record<string, UiMessage[]>
   approvals: ApprovalRequestEvent[]
   questions: UserQuestionRequestEvent[]
@@ -116,7 +124,10 @@ interface AppStore {
   selectSession: (sessionId: string) => Promise<void>
   loadSessionHistory: (sessionId: string, force?: boolean) => Promise<void>
   createSession: (cwd?: string) => Promise<SessionSummary | null>
-  sendQuery: (text: string, images?: ImageAttachment[]) => Promise<void>
+  sendQuery: (text: string, images?: ImageAttachment[], options?: { forceImmediate?: boolean }) => Promise<void>
+  removeQueuedMessage: (sessionId: string, queuedId: string) => void
+  editQueuedMessage: (sessionId: string, queuedId: string) => void
+  flushQueuedMessage: (sessionId: string, queuedId: string) => Promise<void>
   respondApproval: (requestId: string, outcome: ApprovalOutcome) => Promise<void>
   respondUserQuestion: (requestId: string, answer: unknown) => Promise<void>
   pickAndSetWorkingDirectory: () => Promise<void>
@@ -157,6 +168,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   composerDraft: null,
   noticeBanner: null,
   streamingBySession: {},
+  queuedMessagesBySession: {},
   messagesBySession: {},
   approvals: [],
   questions: [],
@@ -240,22 +252,40 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
 
       onSessionStatus: ({ sessionId, status }) => {
+        const wasAborting = get().abortingSessionId === sessionId
+        let nextToSend: QueuedMessage | null = null
+
         set((state) => {
           const nextStreaming = { ...state.streamingBySession }
+          let nextQueued = state.queuedMessagesBySession
           if (status === 'idle') {
             delete nextStreaming[sessionId]
+            const queue = state.queuedMessagesBySession[sessionId] ?? []
+            if (!wasAborting && queue.length > 0) {
+              nextToSend = queue[0]
+              nextQueued = {
+                ...state.queuedMessagesBySession,
+                [sessionId]: queue.slice(1),
+              }
+            }
           }
           return {
             sessions: state.sessions.map((s) =>
               s.sessionId === sessionId ? { ...s, status, updatedAt: Date.now() } : s,
             ),
             streamingBySession: nextStreaming,
+            queuedMessagesBySession: nextQueued,
             abortingSessionId:
-              status === 'idle' && state.abortingSessionId === sessionId
-                ? null
-                : state.abortingSessionId,
+              status === 'idle' && wasAborting ? null : state.abortingSessionId,
           }
         })
+
+        if (nextToSend) {
+          const item: QueuedMessage = nextToSend
+          setTimeout(() => {
+            void get().sendQuery(item.text, item.images, { forceImmediate: true })
+          }, 0)
+        }
       },
 
       onSessionEvent: (event: UiSessionEvent) => {
@@ -603,7 +633,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  sendQuery: async (text, images = []) => {
+  sendQuery: async (text, images = [], options) => {
     const trimmed = text.trim()
     if (!trimmed && images.length === 0) return
 
@@ -612,6 +642,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const created = await get().createSession()
       if (!created) return
       sessionId = created.sessionId
+    }
+
+    const activeSession = get().sessions.find((s) => s.sessionId === sessionId)
+    if (!options?.forceImmediate && activeSession?.status === 'running') {
+      const queued: QueuedMessage = {
+        id: `queued-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        text: trimmed,
+        images,
+        createdAt: Date.now(),
+      }
+      set((state) => ({
+        queuedMessagesBySession: {
+          ...state.queuedMessagesBySession,
+          [sessionId!]: [...(state.queuedMessagesBySession[sessionId!] ?? []), queued],
+        },
+        errorBanner: null,
+      }))
+      return
     }
 
     const blocks: UiContentBlock[] = []
@@ -685,6 +733,48 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch (error) {
       set({ errorBanner: `回退会话失败：${String(error)}` })
     }
+  },
+
+  removeQueuedMessage: (sessionId, queuedId) => {
+    set((state) => ({
+      queuedMessagesBySession: {
+        ...state.queuedMessagesBySession,
+        [sessionId]: (state.queuedMessagesBySession[sessionId] ?? []).filter(
+          (item) => item.id !== queuedId,
+        ),
+      },
+    }))
+  },
+
+  editQueuedMessage: (sessionId, queuedId) => {
+    const queue = get().queuedMessagesBySession[sessionId] ?? []
+    const target = queue.find((item) => item.id === queuedId)
+    if (!target) return
+    set((state) => ({
+      queuedMessagesBySession: {
+        ...state.queuedMessagesBySession,
+        [sessionId]: (state.queuedMessagesBySession[sessionId] ?? []).filter(
+          (item) => item.id !== queuedId,
+        ),
+      },
+      composerDraft: target.text,
+    }))
+  },
+
+  flushQueuedMessage: async (sessionId, queuedId) => {
+    const queue = get().queuedMessagesBySession[sessionId] ?? []
+    const target = queue.find((item) => item.id === queuedId)
+    if (!target) return
+    set((state) => ({
+      queuedMessagesBySession: {
+        ...state.queuedMessagesBySession,
+        [sessionId]: (state.queuedMessagesBySession[sessionId] ?? []).filter(
+          (item) => item.id !== queuedId,
+        ),
+      },
+      activeSessionId: sessionId,
+    }))
+    await get().sendQuery(target.text, target.images, { forceImmediate: true })
   },
 
   respondApproval: async (requestId, outcome) => {

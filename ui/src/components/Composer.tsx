@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
-import { ArrowUp, FolderOpen, ImagePlus, Square, X } from 'lucide-react'
+import { ArrowUp, Clock, FolderOpen, ImagePlus, ListPlus, Pencil, SendHorizontal, Square, X } from 'lucide-react'
 import { DshSlot } from '../plugins/dshPluginHost'
 import { useAppStore } from '../store/useAppStore'
 import type { ImageAttachment } from '../types/domain'
@@ -77,11 +77,16 @@ export function Composer({ centered = false }: ComposerProps) {
   const composerDraft = useAppStore((s) => s.composerDraft)
   const consumeComposerDraft = useAppStore((s) => s.consumeComposerDraft)
   const pickAndSetWorkingDirectory = useAppStore((s) => s.pickAndSetWorkingDirectory)
+  const queuedMessagesBySession = useAppStore((s) => s.queuedMessagesBySession)
+  const removeQueuedMessage = useAppStore((s) => s.removeQueuedMessage)
+  const editQueuedMessage = useAppStore((s) => s.editQueuedMessage)
+  const flushQueuedMessage = useAppStore((s) => s.flushQueuedMessage)
 
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
   const cwd = activeSession?.cwd ?? config?.defaultCwd ?? ''
   const disabled = workerStatus.state !== 'ready'
   const isRunning = activeSession?.status === 'running'
+  const queuedMessages = activeSessionId ? (queuedMessagesBySession[activeSessionId] ?? []) : []
   const canAbort = Boolean(isRunning && bridgeCapabilities.abort && activeSessionId)
   const isAborting = Boolean(activeSessionId && abortingSessionId === activeSessionId)
 
@@ -239,6 +244,68 @@ export function Composer({ centered = false }: ComposerProps) {
           </div>
         )}
 
+        {queuedMessages.length > 0 && activeSessionId && (
+          <div className="mb-2 overflow-hidden rounded-lg border border-[#1E4D9B]/35 bg-[#FAF9F5]">
+            <div className="flex items-center justify-between border-b border-[#ECEAE2] bg-[#1E4D9B]/8 px-3 py-1.5 font-mono-tabular text-[11px] text-[#1E4D9B]">
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <Clock className="h-3 w-3" />
+                待发送队列 · {queuedMessages.length} 条
+              </span>
+              <span className="text-[10px] text-[#575652]">
+                {isRunning ? '当前回合结束后自动依次发送' : '已暂停自动发送，可点击立即发送或编辑'}
+              </span>
+            </div>
+            <ul className="divide-y divide-[#ECEAE2]">
+              {queuedMessages.map((item, idx) => (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-[#141413]"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="font-mono-tabular shrink-0 rounded border border-[#D8D5CB] bg-[#F4F3EE] px-1 text-[10px] text-[#575652]">
+                      #{idx + 1}
+                    </span>
+                    <span className="truncate">
+                      {item.text || '（图片消息）'}
+                    </span>
+                    {item.images.length > 0 && (
+                      <span className="font-mono-tabular shrink-0 text-[10px] text-[#8A8880]">
+                        [{item.images.length} 图]
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => editQueuedMessage(activeSessionId, item.id)}
+                      title="撤回至输入框编辑"
+                      className="rounded p-1 text-[#575652] transition hover:bg-[#ECEAE2] hover:text-[#141413]"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void flushQueuedMessage(activeSessionId, item.id)}
+                      title="立即发送（插队）"
+                      className="rounded p-1 text-[#1E4D9B] transition hover:bg-[#1E4D9B]/10"
+                    >
+                      <SendHorizontal className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeQueuedMessage(activeSessionId, item.id)}
+                      title="从队列移除"
+                      className="rounded p-1 text-[#8A8880] transition hover:bg-[#D13B27]/10 hover:text-[#D13B27]"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] transition focus-within:border-[#141413]">
           {images.length > 0 && (
             <div className="flex flex-wrap gap-2 border-b border-[#D8D5CB] px-3 pt-3 pb-2">
@@ -273,7 +340,11 @@ export function Composer({ centered = false }: ComposerProps) {
             onPaste={(e) => void handlePaste(e)}
             disabled={disabled}
             placeholder={
-              disabled ? '等待后端服务就绪...' : '输入指令、技术问题，或输入 / 查看可用指令...'
+              disabled
+                ? '等待后端服务就绪...'
+                : isRunning
+                  ? 'Agent 正在运行，输入内容将加入待发送队列（完成后自动发送）...'
+                  : '输入指令、技术问题，或输入 / 查看可用指令...'
             }
             className="max-h-44 w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm leading-relaxed text-[#141413] placeholder-[#8A8880] focus:outline-none disabled:opacity-50"
           />
@@ -340,10 +411,21 @@ export function Composer({ centered = false }: ComposerProps) {
                 type="button"
                 onClick={handleSend}
                 disabled={disabled || (!text.trim() && images.length === 0)}
-                className="inline-flex h-7 w-7 items-center justify-center rounded bg-[#D13B27] text-[#FAF9F5] transition hover:bg-[#b5301f] disabled:cursor-not-allowed disabled:bg-[#ECEAE2] disabled:text-[#8A8880]"
-                title="发送（Enter）"
+                className={`inline-flex h-7 items-center justify-center rounded text-[#FAF9F5] transition disabled:cursor-not-allowed disabled:bg-[#ECEAE2] disabled:text-[#8A8880] ${
+                  isRunning
+                    ? 'gap-1 bg-[#1E4D9B] px-2.5 text-xs font-medium hover:bg-[#173d7c]'
+                    : 'w-7 bg-[#D13B27] hover:bg-[#b5301f]'
+                }`}
+                title={isRunning ? '加入待发送队列（Enter）' : '发送（Enter）'}
               >
-                <ArrowUp className="h-4 w-4 stroke-[2.2]" />
+                {isRunning ? (
+                  <>
+                    <ListPlus className="h-3.5 w-3.5" />
+                    入队
+                  </>
+                ) : (
+                  <ArrowUp className="h-4 w-4 stroke-[2.2]" />
+                )}
               </button>
             </div>
           </div>
