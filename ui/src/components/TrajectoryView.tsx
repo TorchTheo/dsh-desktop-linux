@@ -363,6 +363,10 @@ export function TrajectoryView() {
   }, [allTurns, filter])
 
   const visibleSteps = useMemo(() => filteredTurns.flatMap((t) => t.steps), [filteredTurns])
+  const sessionTotalTurnMs = useMemo(
+    () => Math.max(1, allTurns.reduce((sum, t) => sum + t.totalDurationMs, 0)),
+    [allTurns],
+  )
   const selectedStep =
     visibleSteps.find((s) => s.id === selectedStepId) ??
     visibleSteps[visibleSteps.length - 1] ??
@@ -442,6 +446,49 @@ export function TrajectoryView() {
         </div>
       </div>
 
+      {/* 顶层回合概览流水线（宏观视角，点击可展开并定位到该回合） */}
+      {allTurns.length > 0 && (
+        <div className="border-b border-[#D8D5CB] bg-[#F4F3EE] px-5 py-2.5">
+          <div className="mb-1.5 flex items-center justify-between text-[11px] text-[#575652]">
+            <span className="font-semibold text-[#141413]">回合概览流水线</span>
+            <span className="font-mono-tabular text-[#8A8880]">
+              共 {allTurns.length} 个回合 · 点击色块展开对应回合
+            </span>
+          </div>
+          <div className="flex h-7 w-full items-stretch gap-1 overflow-x-auto">
+            {allTurns.map((turn) => {
+              const pct = Math.max(6, (turn.totalDurationMs / sessionTotalTurnMs) * 100)
+              const isExpanded = Boolean(expandedTurns[turn.id])
+              const barBg = turn.hasError
+                ? 'bg-[#D13B27]/15 border-[#D13B27]/60 text-[#8f2214]'
+                : isExpanded
+                  ? 'bg-[#141413] border-[#141413] text-[#FAF9F5]'
+                  : 'bg-[#FAF9F5] border-[#D8D5CB] text-[#141413] hover:border-[#1E4D9B]'
+              return (
+                <button
+                  key={turn.id}
+                  type="button"
+                  style={{ flexGrow: pct, flexBasis: '72px' }}
+                  onClick={() => {
+                    setExpandedTurns((prev) => ({ ...prev, [turn.id]: true }))
+                    if (turn.steps[0]) setSelectedStepId(turn.steps[0].id)
+                    document.getElementById(`trace-${turn.id}`)?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'nearest',
+                    })
+                  }}
+                  title={`第 ${turn.turnNumber} 回合 · ${turn.promptPreview} · 耗时 ${formatMs(turn.totalDurationMs)}`}
+                  className={`font-mono-tabular flex min-w-[72px] items-center justify-between gap-1.5 rounded border px-2 text-[10.5px] transition ${barBg}`}
+                >
+                  <span className="font-semibold">T{String(turn.turnNumber).padStart(2, '0')}</span>
+                  <span className="truncate opacity-80">{formatMs(turn.totalDurationMs)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 全局流水线耗时构成条 */}
       {allSteps.length > 0 && (
         <div className="border-b border-[#D8D5CB] bg-[#FAF9F5] px-5 py-2.5">
@@ -520,6 +567,7 @@ export function TrajectoryView() {
               const turnTotal = Math.max(1, turn.totalDurationMs)
               return (
                 <section
+                  id={`trace-${turn.id}`}
                   key={turn.id}
                   className="overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]"
                 >
