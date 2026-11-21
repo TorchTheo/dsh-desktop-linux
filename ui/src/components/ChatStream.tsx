@@ -330,6 +330,7 @@ interface TurnGroup {
   systemMessage?: UiMessage
   processBlocks: UiContentBlock[]
   finalBlocks: UiContentBlock[]
+  notices?: string[]
 }
 
 function groupMessagesIntoTurns(messages: UiMessage[]): TurnGroup[] {
@@ -343,7 +344,8 @@ function groupMessagesIntoTurns(messages: UiMessage[]): TurnGroup[] {
     }
   }
 
-  for (const msg of messages) {
+  for (let i = 0; i < messages.length; i += 1) {
+    const msg = messages[i]
     if (msg.role === 'user') {
       flushAgent()
       const userText = msg.blocks
@@ -364,6 +366,30 @@ function groupMessagesIntoTurns(messages: UiMessage[]): TurnGroup[] {
     }
 
     if (msg.isError || msg.role === 'system') {
+      const nextMsg = messages[i + 1]
+      const isAttemptRetry = msg.id.startsWith('attempt-err-')
+      const followedByAgent = nextMsg !== undefined && nextMsg.role !== 'user'
+      if (isAttemptRetry || currentAgent || followedByAgent) {
+        if (!currentAgent) {
+          currentAgent = {
+            id: msg.id,
+            kind: 'agent',
+            timestamp: msg.timestamp,
+            processBlocks: [],
+            finalBlocks: [],
+            notices: [],
+          }
+        }
+        const noticeText = msg.blocks
+          .filter((b) => b.type === 'text')
+          .map((b) => b.text)
+          .join('\n')
+          .trim()
+        if (noticeText) {
+          currentAgent.notices = [...(currentAgent.notices ?? []), noticeText]
+        }
+        continue
+      }
       flushAgent()
       groups.push({
         id: msg.id,
@@ -451,6 +477,7 @@ export function ChatStream() {
     text: string
   } | null>(null)
 
+  const isSessionRunning = activeSession?.status === 'running'
   const streaming = activeSessionId ? streamingBySession[activeSessionId] : undefined
   const isLoadingHistory = Boolean(activeSessionId && loadingHistoryId === activeSessionId)
   const sessionApprovals = approvals.filter(
@@ -665,6 +692,20 @@ export function ChatStream() {
                     <Bot className="h-3.5 w-3.5 stroke-[1.9]" />
                   </div>
                   <article className="min-w-0 flex-1 max-w-[90%]">
+                    {group.notices && group.notices.length > 0 && (
+                      <div className="mb-2 space-y-1">
+                        {group.notices.map((notice, nIdx) => (
+                          <div
+                            key={nIdx}
+                            className="inline-flex items-center gap-1.5 rounded border border-[#C4881C]/40 bg-[#C4881C]/10 px-2.5 py-1 font-mono-tabular text-[11px] text-[#7a520a]"
+                          >
+                            <AlertCircle className="h-3 w-3 shrink-0 text-[#C4881C]" />
+                            <span>已触发重试 · {notice}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {group.processBlocks.length > 0 && (
                       <ProcessGroupDisclosure blocks={group.processBlocks} />
                     )}
@@ -690,6 +731,21 @@ export function ChatStream() {
                 </div>
               )
             })}
+
+            {isSessionRunning && !streaming?.thinking && !streaming?.text && (
+              <div className="flex items-start justify-start gap-2.5">
+                <div
+                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#1E4D9B] bg-[#1E4D9B] text-[#FAF9F5]"
+                  title="正在调用模型"
+                >
+                  <Bot className="h-3.5 w-3.5 animate-pulse stroke-[1.9]" />
+                </div>
+                <div className="mt-1 inline-flex items-center gap-2 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-3 py-1.5 text-xs text-[#575652]">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D13B27]" />
+                  <span>正在思考并调用模型...</span>
+                </div>
+              </div>
+            )}
 
             {(streaming?.thinking || streaming?.text) && (
               <div className="flex items-start justify-start gap-2.5">

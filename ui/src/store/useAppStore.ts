@@ -288,6 +288,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
           set((state) => {
             const nextStreaming = { ...state.streamingBySession }
             delete nextStreaming[event.sessionId]
+            if (event.reason === 'blocked' || event.reason === 'error') {
+              const reasonText =
+                event.reason === 'blocked'
+                  ? '本轮请求被插件或规则拦截（blocked），未触发模型调用'
+                  : '本轮执行异常中断（error）'
+              const noticeMsg: UiMessage = {
+                id: `turn-end-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                role: 'system',
+                blocks: [{ type: 'text', text: reasonText }],
+                timestamp: Date.now(),
+                isError: true,
+              }
+              return {
+                streamingBySession: nextStreaming,
+                messagesBySession: {
+                  ...state.messagesBySession,
+                  [event.sessionId]: [...(state.messagesBySession[event.sessionId] ?? []), noticeMsg],
+                },
+              }
+            }
             return { streamingBySession: nextStreaming }
           })
         } else if (event.kind === 'attemptFailed') {
@@ -298,12 +318,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
             timestamp: Date.now(),
             isError: true,
           }
-          set((state) => ({
-            messagesBySession: {
-              ...state.messagesBySession,
-              [event.sessionId]: [...(state.messagesBySession[event.sessionId] ?? []), errMsg],
-            },
-          }))
+          set((state) => {
+            const nextStreaming = { ...state.streamingBySession }
+            delete nextStreaming[event.sessionId]
+            return {
+              streamingBySession: nextStreaming,
+              messagesBySession: {
+                ...state.messagesBySession,
+                [event.sessionId]: [...(state.messagesBySession[event.sessionId] ?? []), errMsg],
+              },
+            }
+          })
         }
       },
 
@@ -618,6 +643,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         s.sessionId === sessionId
           ? {
               ...s,
+              status: 'running',
               title: s.title === 'New session' && trimmed ? trimmed.slice(0, 32) : s.title,
               updatedAt: Date.now(),
             }
@@ -629,7 +655,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await api.sendQuery(sessionId, trimmed, images, localMsg.id)
     } catch (error) {
-      set({ errorBanner: `发送消息失败：${String(error)}` })
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.sessionId === sessionId ? { ...s, status: 'idle' } : s,
+        ),
+        errorBanner: `发送消息失败：${String(error)}`,
+      }))
     }
   },
 
