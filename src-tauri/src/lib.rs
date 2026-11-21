@@ -2,17 +2,21 @@ mod commands;
 pub mod config;
 pub mod domain;
 pub mod logging;
+mod native;
 pub mod protocol;
 mod state;
 pub mod storage;
 
+use std::path::Path;
+
 use serde_json::json;
-use tauri::{AppHandle, Emitter, Manager, RunEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 use tokio::sync::mpsc;
 
 use crate::{
     config::AppConfig,
     domain::{BridgeCapabilities, SessionRunStatus, UiSessionEvent, WorkerStatus},
+    native::{notify, tray},
     protocol::BackendEvent,
     state::AppState,
 };
@@ -25,9 +29,29 @@ pub fn run() {
     let (event_tx, event_rx) = mpsc::unbounded_channel();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let directory = args
+                .iter()
+                .skip(1)
+                .map(|arg| Path::new(&cwd).join(arg))
+                .find(|path| path.is_dir());
+            let handle = app.clone();
+            if let Err(error) = app.run_on_main_thread(move || {
+                tray::show_and_focus_main_window(&handle);
+                if let Some(path) = directory {
+                    if let Err(error) = handle.emit_to("main", "dsh://open-directory", path) {
+                        tracing::warn!(%error, "Could not emit directory from second launch");
+                    }
+                }
+            }) {
+                tracing::warn!(%error, "Could not schedule second launch handling");
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState::new(config, event_tx))
+        .manage(tray::ExitRequested::default())
         .invoke_handler(tauri::generate_handler![
             commands::get_app_state,
             commands::list_workspaces,
@@ -46,8 +70,28 @@ pub fn run() {
             commands::set_working_directory,
             commands::update_config,
             commands::pick_directory,
+            commands::open_external_url,
         ])
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main"
+                    && !window.state::<tray::ExitRequested>().is_set()
+                    && window
+                        .state::<AppState>()
+                        .config
+                        .read()
+                        .unwrap()
+                        .close_to_tray
+                {
+                    api.prevent_close();
+                    if let Err(error) = window.hide() {
+                        tracing::warn!(%error, "Could not hide main window");
+                    }
+                }
+            }
+        })
         .setup(move |app| {
+            tray::install(app.handle())?;
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(forward_events(handle.clone(), event_rx));
             tauri::async_runtime::spawn(async move {
@@ -90,7 +134,15 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
             }
             BackendEvent::StreamDelta(event) => app.emit("dsh://stream-delta", event),
             BackendEvent::SessionStatus { session_id, status } => {
-                state.update_session(&session_id, |session| session.status = status.clone());
+                let mut completed = false;
+                state.update_session(&session_id, |session| {
+                    completed = session.status == SessionRunStatus::Running
+                        && status == SessionRunStatus::Idle;
+                    session.status = status.clone();
+                });
+                if completed {
+                    notify::in_background(&app, "DSH 任务已完成", None);
+                }
                 app.emit(
                     "dsh://session-status",
                     json!({ "sessionId": session_id, "status": status }),
@@ -102,8 +154,18 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
                 }
                 app.emit("dsh://session-event", event)
             }
-            BackendEvent::ApprovalRequest(event) => app.emit("dsh://approval-request", event),
-            BackendEvent::UserQuestion(event) => app.emit("dsh://user-question", event),
+            BackendEvent::ApprovalRequest(event) => {
+                notify::in_background(
+                    &app,
+                    "DSH 需要工具审批",
+                    Some(format!("工具：{}", event.tool_name)),
+                );
+                app.emit("dsh://approval-request", event)
+            }
+            BackendEvent::UserQuestion(event) => {
+                notify::in_background(&app, "DSH 等待你的输入", None);
+                app.emit("dsh://user-question", event)
+            }
             BackendEvent::UserQuestionCancelled(event) => {
                 app.emit("dsh://user-question-cancelled", event)
             }

@@ -19,6 +19,10 @@ pub struct AppConfig {
     pub patches: Vec<String>,
     #[serde(default = "default_true")]
     pub enable_bridge: bool,
+    #[serde(default = "default_true")]
+    pub close_to_tray: bool,
+    #[serde(default = "default_true")]
+    pub desktop_notifications: bool,
     #[serde(deserialize_with = "deserialize_dmabuf_mode")]
     pub disable_dmabuf: String,
 }
@@ -46,6 +50,8 @@ impl Default for AppConfig {
                 .into_owned(),
             patches,
             enable_bridge: default_true(),
+            close_to_tray: default_true(),
+            desktop_notifications: default_true(),
             disable_dmabuf: "auto".into(),
         }
     }
@@ -200,6 +206,8 @@ mod tests {
         assert_eq!(config.provider, "custom");
         assert!(config.dsh_bin.is_empty());
         assert!(config.enable_bridge);
+        assert!(config.close_to_tray);
+        assert!(config.desktop_notifications);
         assert!(config.reasoning_effort.is_none());
         assert_eq!(config.disable_dmabuf, "auto");
         assert!(!config.default_cwd.is_empty());
@@ -221,6 +229,8 @@ mod tests {
     fn config_round_trips_with_camel_case_keys() {
         let config = AppConfig {
             reasoning_effort: Some("high".into()),
+            close_to_tray: false,
+            desktop_notifications: false,
             ..AppConfig::default()
         };
         let encoded = toml::to_string(&config).unwrap();

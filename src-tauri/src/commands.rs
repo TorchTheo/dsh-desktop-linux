@@ -1,6 +1,7 @@
 use serde_json::Value;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, Url};
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
@@ -223,4 +224,50 @@ pub(crate) async fn pick_directory(app: AppHandle) -> Result<Option<String>, Str
                 .map_err(|error| error.to_string())
         })
         .transpose()
+}
+
+#[tauri::command]
+pub(crate) fn open_external_url(app: AppHandle, url: String) -> Result<(), String> {
+    app.opener()
+        .open_url(validate_external_url(&url)?.to_string(), None::<&str>)
+        .map_err(|error| error.to_string())
+}
+
+fn validate_external_url(url: &str) -> Result<Url, String> {
+    let (scheme, rest) = url.split_once(':').unwrap_or_default();
+    let allowed = scheme.eq_ignore_ascii_case("mailto")
+        || ((scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"))
+            && rest.starts_with("//"));
+    if !allowed {
+        return Err("Only http://, https:// and mailto: URLs are allowed".into());
+    }
+    Url::parse(url).map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_external_url;
+
+    #[test]
+    fn external_urls_allow_only_web_and_mail_schemes() {
+        for url in [
+            "http://example.com",
+            "HTTPS://example.com/path",
+            "mailto:user@example.com",
+        ] {
+            assert!(validate_external_url(url).is_ok(), "{url}");
+        }
+        for url in [
+            "file:///etc/hosts",
+            "javascript:alert(1)",
+            "data:text/plain,test",
+            "ftp://example.com",
+            "https+custom://example.com",
+            "//example.com",
+            "https:example.com",
+            "https://",
+        ] {
+            assert!(validate_external_url(url).is_err(), "{url}");
+        }
+    }
 }
