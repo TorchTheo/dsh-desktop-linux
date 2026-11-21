@@ -4,9 +4,10 @@ import { pathToFileURL } from 'node:url'
 
 // Resolve from the running DSH entry point, including global npm bin symlinks.
 const requireFromDsh = createRequire(realpathSync(process.argv[1]))
-const [sdk, protocol] = await Promise.all([
+const [sdk, protocol, agentModule] = await Promise.all([
   '@deepseek-ai/dsh-sdk-jsonrpc-server',
   '@deepseek-ai/dsh-sdk-protocol',
+  '@deepseek-ai/dsh-agent',
 ].map(specifier => import(pathToFileURL(requireFromDsh.resolve(specifier)).href)))
 
 const { HarnessSdkJsonRpcServer } = sdk
@@ -42,6 +43,12 @@ async function hostInfo(ctx) {
   }
 }
 
+async function checkpointSession(ctx, session) {
+  const cache = ctx.get('sessionProjectionCache')
+  if (cache) await cache.write(session)
+  else await requireService(ctx, 'sessions').flush(session)
+}
+
 function sameOriginUrl(path, origin, base = origin) {
   const url = new URL(path, base)
   if (url.origin !== origin || url.username || url.password) {
@@ -70,6 +77,12 @@ async function fetchHost(url, origin, method, headers, body) {
   }
 }
 
+function requireService(ctx, name) {
+  const service = ctx.get(name)
+  if (service === undefined) throw new Error(`${name} is unavailable in this profile`)
+  return service
+}
+
 function pluginManagerOf(ctx) {
   const manager = ctx.get('pluginManager')
   if (manager === undefined) throw new Error('plugin manager is unavailable in this profile')
@@ -95,10 +108,70 @@ function normalizeBundleSource(value) {
   return JSON.stringify(value)
 }
 
+// The SDK's stock create/resume path has no preset composition callback.
+class DesktopSdkServer extends HarnessSdkJsonRpcServer {
+  async createSession(sessionId, resume) {
+    const live = resume ? this.ctx.agents.get(sessionId) : undefined
+    const presets = this.ctx.get('agentPresets')
+    if (!live && !presets) return super.createSession(sessionId, resume)
+
+    const agentOptions = {
+      provider: this.provider,
+      model: this.model,
+      reasoningEffort: this.reasoningEffort,
+      maxTokens: this.maxTokens,
+    }
+    const selectModel = agent => {
+      const previous = agent.model.current()
+      const reasoningEffort = agentOptions.reasoningEffort ??
+        (previous?.provider === agentOptions.provider && previous.model === agentOptions.model
+          ? previous.reasoningEffort : undefined)
+      agent.model.select({ ...agentOptions, reasoningEffort })
+    }
+
+    let handle
+    if (live) {
+      if (live.session.header.origin === 'subagent') {
+        throw new Error(`subagent session "${sessionId}" cannot be resumed directly; resume its root session instead`)
+      }
+      selectModel(live)
+      // The Web controller owns this Agent's lifecycle.
+      handle = { agent: live, dispose: async () => {} }
+    } else if (resume) {
+      if ((await requireService(this.ctx, 'sessionPersistence').stat(sessionId))?.header.origin === 'subagent') {
+        throw new Error(`subagent session "${sessionId}" cannot be resumed directly; resume its root session instead`)
+      }
+      handle = await this.ctx.agents.resume({
+        resumeSessionId: sessionId,
+        agentOptions,
+        setup: async (agentCtx, agent) => {
+          agentModule.installModelSelection(agentCtx)
+          await presets.mount(agentCtx, presets.presetForSession(agent.session) ?? undefined)
+          selectModel(agent)
+        },
+      })
+    } else {
+      const { id } = await presets.resolve()
+      handle = await this.ctx.agents.create({
+        sessionId,
+        meta: { cwd: this.cwd, agentPreset: id },
+        agentOptions,
+        setup: async agentCtx => {
+          agentModule.installModelSelection(agentCtx)
+          await presets.mount(agentCtx, id)
+        },
+      })
+    }
+    const record = { handle, failure: undefined }
+    this.sessions.set(sessionId, record)
+    return record
+  }
+}
+
 export function apply(ctx, config) {
   const rootFiber = ctx.root.fiber
   const transport = new JsonRpcLineTransport(config.input ?? process.stdin, config.output ?? process.stdout)
-  const server = new HarnessSdkJsonRpcServer(ctx, transport, {
+  const server = new DesktopSdkServer(ctx, transport, {
     maxTokensAsSuccess: config.maxTokensAsSuccess,
   })
   ctx.provide('sdkSessionActivation', { ready: true })
@@ -265,6 +338,8 @@ html[data-dsh-desktop-theme='bauhaus'],
           pluginManager: ctx.get('pluginManager') !== undefined,
           clientPlugins: true,
           hostHttpProxy: true,
+          agentPresets: true,
+          sessionActions: true,
         }
       case 'desktop/host/info':
         return hostInfo(ctx)
@@ -318,6 +393,68 @@ html[data-dsh-desktop-theme='bauhaus'],
         return pluginManagerOf(ctx).installBundle(requiredString(params?.spec, 'spec'))
       case 'desktop/plugins/remove':
         return pluginManagerOf(ctx).removeBundle(requiredString(params?.packageName, 'packageName'))
+      case 'desktop/presets/list': {
+        await ctx.get('loader')?.await()
+        const registry = ctx.get('agentPresets')
+        return {
+          defaultPresetId: registry?.defaultId ?? null,
+          presets: (await registry?.list() ?? []).map(({ id, name, description }) => ({
+            id, name: name ?? id, description: description ?? null,
+          })),
+        }
+      }
+      case 'desktop/presets/set-default': {
+        await ctx.get('loader')?.await()
+        const presetId = requiredString(params?.presetId, 'presetId')
+        const preset = await requireService(ctx, 'agentPresets').resolve(presetId)
+        if (preset.broken !== undefined) throw new Error(preset.broken)
+        await requireService(ctx, 'settings').update('agent-preset-registry', { selectedDefault: presetId })
+        return { defaultPresetId: presetId }
+      }
+      case 'desktop/session/set-preset': {
+        const sessionId = requiredString(params?.sessionId, 'sessionId')
+        const presetId = requiredString(params?.presetId, 'presetId')
+        const agent = ctx.agents.get(sessionId)
+        if (!agent) throw new Error(`no live agent for session ${sessionId}`)
+        const selected = await requireService(ctx, 'agentPresets').select(agent, presetId)
+        await checkpointSession(ctx, agent.session)
+        return { sessionId, presetId: selected }
+      }
+      case 'desktop/session/fork': {
+        const sourceId = requiredString(params?.sessionId, 'sessionId')
+        const { sessionId } = await requireService(ctx, 'sessionController').fork({ sessionId: sourceId })
+        const session = requireService(ctx, 'sessions').get(sessionId)
+        await checkpointSession(ctx, session)
+        return {
+          sessionId,
+          title: ctx.get('sessionTitle')?.get(session)?.title ?? 'Untitled session',
+          cwd: ctx.workingDirectory.get(session),
+        }
+      }
+      case 'desktop/session/update-meta': {
+        const sessionId = requiredString(params?.sessionId, 'sessionId')
+        const { title, pinned, archived } = params
+        if (title !== undefined) requiredString(title, 'title')
+        if (pinned !== undefined) requiredBoolean(pinned, 'pinned')
+        if (archived !== undefined) requiredBoolean(archived, 'archived')
+        const workspace = requireService(ctx, 'workspaceRegistry')
+        if (pinned === true && (archived ?? workspace.archivedSessionIds.includes(sessionId))) {
+          throw new Error('An archived session cannot be pinned')
+        }
+        const result = { sessionId }
+        if (title !== undefined) {
+          const renamed = await requireService(ctx, 'sessionController').rename({ sessionId, title })
+          await checkpointSession(ctx, requireService(ctx, 'sessions').get(sessionId))
+          result.title = renamed.title
+        }
+        if (archived === true) await workspace.archiveSession(sessionId)
+        if (archived === false) await workspace.unarchiveSession(sessionId)
+        if (pinned === true) await workspace.pinSession(sessionId)
+        if (pinned === false) await workspace.unpinSession(sessionId)
+        if (archived !== undefined) result.archived = workspace.archivedSessionIds.includes(sessionId)
+        if (pinned !== undefined || archived === true) result.pinned = workspace.pinnedSessionIds.includes(sessionId)
+        return result
+      }
       case 'desktop/session/abort': {
         const agent = ctx.agents.get(requiredString(params?.sessionId, 'sessionId'))
         if (agent?.status !== 'running') return { aborted: false }

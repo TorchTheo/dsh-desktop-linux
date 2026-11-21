@@ -31,6 +31,7 @@ pub(crate) struct AppState {
     pub active_worker_sessions: RwLock<HashSet<String>>,
     pub adapter: Mutex<Option<Arc<SdkAdapter>>>,
     pub event_tx: mpsc::UnboundedSender<BackendEvent>,
+    pub session_meta_update: Mutex<()>,
     storage_refresh: BlockingMutex<()>,
     stopping: AtomicBool,
 }
@@ -56,6 +57,7 @@ impl AppState {
             active_worker_sessions: RwLock::new(HashSet::new()),
             adapter: Mutex::new(None),
             event_tx,
+            session_meta_update: Mutex::new(()),
             storage_refresh: BlockingMutex::new(()),
             stopping: AtomicBool::new(false),
         }

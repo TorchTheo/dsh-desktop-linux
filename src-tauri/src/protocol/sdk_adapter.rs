@@ -11,7 +11,7 @@ use std::{
 };
 
 use directories::BaseDirs;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -25,11 +25,12 @@ use uuid::Uuid;
 use crate::{
     config::AppConfig,
     domain::{
-        ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities, ClientPluginModule,
-        HostRuntimeInfo, ImageAttachment, PluginBundleInfo, ProviderModels, ProxiedHttpResponse,
-        SessionModelSelection, SessionPermission, SessionRunStatus, SessionTelemetry,
-        SessionTelemetryEvent, StreamDeltaEvent, SubagentEvent, UiContentBlock, UiMessage,
-        UiSessionEvent, UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
+        AgentPresetCatalog, ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities,
+        ClientPluginModule, HostRuntimeInfo, ImageAttachment, PluginBundleInfo, ProviderModels,
+        ProxiedHttpResponse, SessionModelSelection, SessionPermission, SessionPresetResult,
+        SessionRunStatus, SessionTelemetry, SessionTelemetryEvent, StreamDeltaEvent, SubagentEvent,
+        UiContentBlock, UiMessage, UiSessionEvent, UserQuestionCancelledEvent,
+        UserQuestionRequestEvent, WorkerStatus,
     },
 };
 
@@ -59,6 +60,25 @@ pub struct SdkAdapter {
     stopping: Arc<AtomicBool>,
     dispatch: Option<JoinHandle<()>>,
     stderr: JoinHandle<()>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ForkedSession {
+    pub session_id: String,
+    pub title: String,
+    pub cwd: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SessionMeta {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archived: Option<bool>,
 }
 
 impl SdkAdapter {
@@ -270,6 +290,61 @@ impl SdkAdapter {
             .bridge_rpc("desktop/session/abort", json!({"sessionId": session_id}))
             .await?;
         Ok(response.aborted)
+    }
+
+    pub async fn list_agent_presets(&self) -> Result<AgentPresetCatalog, String> {
+        self.bridge_rpc("desktop/presets/list", json!({})).await
+    }
+
+    pub async fn set_default_agent_preset(&self, preset_id: &str) -> Result<String, String> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Response {
+            default_preset_id: String,
+        }
+        let response: Response = self
+            .bridge_rpc(
+                "desktop/presets/set-default",
+                json!({"presetId": preset_id}),
+            )
+            .await?;
+        Ok(response.default_preset_id)
+    }
+
+    pub async fn set_session_preset(
+        &self,
+        session_id: &str,
+        preset_id: &str,
+    ) -> Result<SessionPresetResult, String> {
+        self.bridge_rpc(
+            "desktop/session/set-preset",
+            json!({"sessionId": session_id, "presetId": preset_id}),
+        )
+        .await
+    }
+
+    pub(crate) async fn fork_session(&self, session_id: &str) -> Result<ForkedSession, String> {
+        self.bridge_rpc("desktop/session/fork", json!({"sessionId": session_id}))
+            .await
+    }
+
+    pub(crate) async fn update_session_meta(
+        &self,
+        session_id: &str,
+        meta: SessionMeta,
+    ) -> Result<SessionMeta, String> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Params<'a> {
+            session_id: &'a str,
+            #[serde(flatten)]
+            meta: SessionMeta,
+        }
+        self.bridge_rpc(
+            "desktop/session/update-meta",
+            json!(Params { session_id, meta }),
+        )
+        .await
     }
 
     pub async fn list_models(&self) -> Result<Vec<ProviderModels>, String> {

@@ -9,12 +9,13 @@ use tokio::sync::oneshot;
 use crate::{
     config::AppConfig,
     domain::{
-        AppStateSnapshot, ApprovalOutcome, ClientPluginModule, HostRuntimeInfo, ImageAttachment,
-        PluginBundleInfo, ProviderModels, ProxiedHttpResponse, RewindResult, SessionModelSelection,
-        SessionPermission, SessionRunStatus, SessionSummary, UiSessionDetail, WorkerStatus,
-        WorkspaceSummary,
+        AgentPresetCatalog, AppStateSnapshot, ApprovalOutcome, ClientPluginModule, HostRuntimeInfo,
+        ImageAttachment, PluginBundleInfo, ProviderModels, ProxiedHttpResponse, RewindResult,
+        SessionModelSelection, SessionPermission, SessionPresetResult, SessionRunStatus,
+        SessionSummary, UiSessionDetail, WorkerStatus, WorkspaceSummary,
     },
-    state::AppState,
+    protocol::sdk_adapter::SessionMeta,
+    state::{now_millis, AppState},
     storage::{self, snapshot},
 };
 
@@ -110,6 +111,122 @@ pub(crate) async fn refresh_sessions(app: AppHandle) -> Result<AppStateSnapshot,
     tokio::task::spawn_blocking(move || app.state::<AppState>().refresh_storage())
         .await
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub(crate) async fn list_agent_presets(
+    state: State<'_, AppState>,
+) -> Result<AgentPresetCatalog, String> {
+    state.sdk().await?.list_agent_presets().await
+}
+
+#[tauri::command]
+pub(crate) async fn set_default_agent_preset(
+    state: State<'_, AppState>,
+    preset_id: String,
+) -> Result<String, String> {
+    state
+        .sdk()
+        .await?
+        .set_default_agent_preset(&preset_id)
+        .await
+}
+
+#[tauri::command]
+pub(crate) async fn set_session_preset(
+    state: State<'_, AppState>,
+    session_id: String,
+    preset_id: String,
+) -> Result<SessionPresetResult, String> {
+    let adapter = state.sdk().await?;
+    state.ensure_session_resumed(&adapter, &session_id).await?;
+    adapter.set_session_preset(&session_id, &preset_id).await
+}
+
+#[tauri::command]
+pub(crate) async fn fork_session(
+    app: AppHandle,
+    session_id: String,
+) -> Result<SessionSummary, String> {
+    let child = app
+        .state::<AppState>()
+        .sdk()
+        .await?
+        .fork_session(&session_id)
+        .await?;
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        state.refresh_storage();
+        let mut sessions = state.sessions.write().unwrap();
+        if let Some(session) = sessions
+            .iter_mut()
+            .find(|s| s.session_id == child.session_id)
+        {
+            session.title = child.title;
+            session.cwd = child.cwd;
+            return session.clone();
+        }
+        let now = now_millis();
+        let session = SessionSummary {
+            session_id: child.session_id,
+            title: child.title,
+            cwd: child.cwd,
+            status: SessionRunStatus::Idle,
+            created_at: now,
+            updated_at: now,
+            pinned: false,
+            archived: false,
+            persisted: true,
+        };
+        sessions.insert(0, session.clone());
+        session
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub(crate) async fn update_session_meta(
+    app: AppHandle,
+    session_id: String,
+    title: Option<String>,
+    pinned: Option<bool>,
+    archived: Option<bool>,
+) -> Result<SessionSummary, String> {
+    let app_for_refresh = app.clone();
+    let state = app.state::<AppState>();
+    let _update = state.session_meta_update.lock().await;
+    state.session_summary(&session_id)?;
+    let adapter = state.sdk().await?;
+    let result = adapter
+        .update_session_meta(
+            &session_id,
+            SessionMeta {
+                title,
+                pinned,
+                archived,
+            },
+        )
+        .await;
+    tokio::task::spawn_blocking(move || {
+        let state = app_for_refresh.state::<AppState>();
+        state.refresh_storage();
+        let meta = result?;
+        state.update_session(&session_id, |session| {
+            if let Some(title) = meta.title {
+                session.title = title;
+            }
+            if let Some(pinned) = meta.pinned {
+                session.pinned = pinned;
+            }
+            if let Some(archived) = meta.archived {
+                session.archived = archived;
+            }
+        });
+        state.session_summary(&session_id)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]

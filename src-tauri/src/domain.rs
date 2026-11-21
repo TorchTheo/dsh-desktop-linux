@@ -85,6 +85,32 @@ pub struct BridgeCapabilities {
     pub client_plugins: bool,
     #[serde(default)]
     pub host_http_proxy: bool,
+    #[serde(default)]
+    pub agent_presets: bool,
+    #[serde(default)]
+    pub session_actions: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPresetInfo {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPresetCatalog {
+    pub default_preset_id: Option<String>,
+    pub presets: Vec<AgentPresetInfo>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPresetResult {
+    pub session_id: String,
+    pub preset_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
