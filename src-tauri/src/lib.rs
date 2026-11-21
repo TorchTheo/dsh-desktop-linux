@@ -30,6 +30,10 @@ pub fn run() {
         .manage(AppState::new(config, event_tx))
         .invoke_handler(tauri::generate_handler![
             commands::get_app_state,
+            commands::list_workspaces,
+            commands::refresh_sessions,
+            commands::load_session_history,
+            commands::resume_session,
             commands::start_worker,
             commands::restart_worker,
             commands::create_session,

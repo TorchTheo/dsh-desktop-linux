@@ -1,5 +1,5 @@
 use serde_json::Value;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tokio::sync::oneshot;
 use uuid::Uuid;
@@ -8,14 +8,66 @@ use crate::{
     config::AppConfig,
     domain::{
         AppStateSnapshot, ApprovalOutcome, ImageAttachment, SessionRunStatus, SessionSummary,
-        WorkerStatus,
+        UiSessionDetail, WorkerStatus, WorkspaceSummary,
     },
     state::{now_millis, AppState},
+    storage,
 };
 
 #[tauri::command]
 pub(crate) fn get_app_state(state: State<'_, AppState>) -> Result<AppStateSnapshot, String> {
     Ok(state.snapshot())
+}
+
+#[tauri::command]
+pub(crate) fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<WorkspaceSummary>, String> {
+    Ok(state.workspaces.read().unwrap().clone())
+}
+
+#[tauri::command]
+pub(crate) async fn refresh_sessions(app: AppHandle) -> Result<AppStateSnapshot, String> {
+    tokio::task::spawn_blocking(move || app.state::<AppState>().refresh_storage())
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub(crate) async fn load_session_history(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<UiSessionDetail, String> {
+    let empty_session = state
+        .session_summary(&session_id)
+        .ok()
+        .filter(|session| !session.persisted && session.status == SessionRunStatus::Idle);
+    tokio::task::spawn_blocking(move || {
+        let home = storage::dsh_home_dir();
+        let transcript = storage::transcript::load_session_transcript(&home, &session_id);
+        if let Some(session) = empty_session.filter(|_| {
+            transcript.is_err()
+                && storage::transcript::find_session_log_path(&home, &session_id).is_none()
+        }) {
+            return Ok(UiSessionDetail {
+                session,
+                messages: Vec::new(),
+                provider: None,
+                model: None,
+            });
+        }
+        transcript
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub(crate) async fn resume_session(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<SessionSummary, String> {
+    let adapter = state.sdk().await?;
+    state.ensure_session_resumed(&adapter, &session_id).await?;
+    state.session_summary(&session_id)
 }
 
 #[tauri::command]
@@ -55,6 +107,11 @@ pub(crate) async fn create_session(
         persisted: false,
     };
     state.sessions.write().unwrap().push(session.clone());
+    state
+        .active_worker_sessions
+        .write()
+        .unwrap()
+        .insert(session.session_id.clone());
     Ok(session)
 }
 
@@ -65,9 +122,9 @@ pub(crate) async fn send_query(
     text: String,
     images: Option<Vec<ImageAttachment>>,
 ) -> Result<Option<String>, String> {
-    state
-        .sdk()
-        .await?
+    let adapter = state.sdk().await?;
+    state.ensure_session_resumed(&adapter, &session_id).await?;
+    adapter
         .send_query(&session_id, &text, images.unwrap_or_default())
         .await
 }
@@ -104,11 +161,9 @@ pub(crate) async fn set_working_directory(
     session_id: String,
     path: String,
 ) -> Result<String, String> {
-    let cwd = state
-        .sdk()
-        .await?
-        .set_working_directory(&session_id, &path)
-        .await?;
+    let adapter = state.sdk().await?;
+    state.ensure_session_resumed(&adapter, &session_id).await?;
+    let cwd = adapter.set_working_directory(&session_id, &path).await?;
     state.update_session(&session_id, |session| session.cwd.clone_from(&cwd));
     Ok(cwd)
 }

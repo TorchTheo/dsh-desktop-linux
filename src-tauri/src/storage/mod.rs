@@ -22,28 +22,28 @@ fn session_id_component(session_id: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::{env, fs, path::PathBuf};
 
     use uuid::Uuid;
 
-    pub(super) struct TestHome(pub PathBuf);
+    pub(crate) struct TestHome(pub PathBuf);
 
     impl TestHome {
-        pub(super) fn new() -> Self {
+        pub(crate) fn new() -> Self {
             let path = env::temp_dir().join(format!("dsh-storage-test-{}", Uuid::new_v4()));
             fs::create_dir(&path).unwrap();
             Self(path)
         }
 
-        pub(super) fn write(&self, relative: &str, contents: &[u8]) -> PathBuf {
+        pub(crate) fn write(&self, relative: &str, contents: &[u8]) -> PathBuf {
             let path = self.0.join(relative);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, contents).unwrap();
             path
         }
 
-        pub(super) fn write_log(&self, id: &str, contents: &str) -> PathBuf {
+        pub(crate) fn write_log(&self, id: &str, contents: &str) -> PathBuf {
             let compressed = zstd::stream::encode_all(contents.as_bytes(), 1).unwrap();
             self.write(
                 &format!("sessions/project/{id}/session.v4.jsonl.zstd"),
