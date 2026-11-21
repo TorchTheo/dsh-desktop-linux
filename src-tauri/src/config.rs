@@ -17,6 +17,8 @@ pub struct AppConfig {
     pub reasoning_effort: Option<String>,
     pub default_cwd: String,
     pub patches: Vec<String>,
+    #[serde(default = "default_true")]
+    pub enable_bridge: bool,
     #[serde(deserialize_with = "deserialize_dmabuf_mode")]
     pub disable_dmabuf: String,
 }
@@ -43,9 +45,14 @@ impl Default for AppConfig {
                 .to_string_lossy()
                 .into_owned(),
             patches,
+            enable_bridge: default_true(),
             disable_dmabuf: "auto".into(),
         }
     }
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn deserialize_dmabuf_mode<'de, D: serde::Deserializer<'de>>(
@@ -113,6 +120,36 @@ impl AppConfig {
         result
     }
 
+    pub fn resolve_bridge_patch(&self) -> Option<PathBuf> {
+        const PATCH: &str = "bridge-plugin/desktop-bridge.patch.yml";
+        const RESOURCE_DIR: &str = concat!("usr/lib/", env!("CARGO_PKG_NAME"));
+
+        let exe_dir = env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(Path::to_path_buf));
+        env::var_os("DSH_DESKTOP_BRIDGE_PATCH")
+            .map(PathBuf::from)
+            .into_iter()
+            .chain(exe_dir.iter().map(|dir| dir.join(PATCH)))
+            .chain(
+                exe_dir
+                    .iter()
+                    .map(|dir| dir.join("../lib").join(env!("CARGO_PKG_NAME")).join(PATCH)),
+            )
+            .chain(
+                env::var_os("APPDIR").map(|dir| PathBuf::from(dir).join(RESOURCE_DIR).join(PATCH)),
+            )
+            .chain([Path::new("/").join(RESOURCE_DIR).join(PATCH)])
+            .chain([
+                PathBuf::from(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../bridge-plugin/desktop-bridge.patch.yml"
+                )),
+                PathBuf::from(PATCH),
+            ])
+            .find(|candidate| candidate.is_file())
+    }
+
     pub fn resolve_dsh_bin(&self) -> Option<PathBuf> {
         let path = env::var_os("PATH");
         let executable_on_path = |name: &Path| {
@@ -162,6 +199,7 @@ mod tests {
         let config: AppConfig = toml::from_str("provider = 'custom'").unwrap();
         assert_eq!(config.provider, "custom");
         assert!(config.dsh_bin.is_empty());
+        assert!(config.enable_bridge);
         assert!(config.reasoning_effort.is_none());
         assert_eq!(config.disable_dmabuf, "auto");
         assert!(!config.default_cwd.is_empty());

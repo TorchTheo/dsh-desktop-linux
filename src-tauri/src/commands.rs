@@ -7,8 +7,8 @@ use uuid::Uuid;
 use crate::{
     config::AppConfig,
     domain::{
-        AppStateSnapshot, ApprovalOutcome, ImageAttachment, SessionRunStatus, SessionSummary,
-        UiSessionDetail, WorkerStatus, WorkspaceSummary,
+        AppStateSnapshot, ApprovalOutcome, ImageAttachment, ProviderModels, SessionModelSelection,
+        SessionRunStatus, SessionSummary, UiSessionDetail, WorkerStatus, WorkspaceSummary,
     },
     state::{now_millis, AppState},
     storage,
@@ -126,6 +126,34 @@ pub(crate) async fn send_query(
     state.ensure_session_resumed(&adapter, &session_id).await?;
     adapter
         .send_query(&session_id, &text, images.unwrap_or_default())
+        .await
+}
+
+#[tauri::command]
+pub(crate) async fn abort_session(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<bool, String> {
+    state.sdk().await?.abort_session(&session_id).await
+}
+
+#[tauri::command]
+pub(crate) async fn list_models(state: State<'_, AppState>) -> Result<Vec<ProviderModels>, String> {
+    state.sdk().await?.list_models().await
+}
+
+#[tauri::command]
+pub(crate) async fn set_session_model(
+    state: State<'_, AppState>,
+    session_id: String,
+    provider: String,
+    model: String,
+    reasoning_effort: Option<String>,
+) -> Result<SessionModelSelection, String> {
+    let adapter = state.sdk().await?;
+    state.ensure_session_resumed(&adapter, &session_id).await?;
+    adapter
+        .set_session_model(&session_id, &provider, &model, reasoning_effort.as_deref())
         .await
 }
 

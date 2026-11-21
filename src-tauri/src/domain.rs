@@ -60,9 +60,53 @@ pub struct WorkspaceSummary {
 pub struct AppStateSnapshot {
     pub config: AppConfig,
     pub worker_status: WorkerStatus,
+    #[serde(default)]
+    pub bridge_capabilities: BridgeCapabilities,
     pub sessions: Vec<SessionSummary>,
     #[serde(default)]
     pub workspaces: Vec<WorkspaceSummary>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeCapabilities {
+    pub stream_delta: bool,
+    pub abort: bool,
+    pub model_control: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamDeltaEvent {
+    pub session_id: String,
+    pub block_type: String,
+    pub delta: String,
+    #[serde(default)]
+    pub reset: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelEntry {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModels {
+    pub id: String,
+    pub name: String,
+    pub models: Vec<ModelEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelSelection {
+    pub provider: String,
+    pub model: String,
+    pub reasoning_effort: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -216,6 +260,7 @@ mod tests {
         }))
         .unwrap();
         assert!(snapshot.workspaces.is_empty());
+        assert_eq!(snapshot.bridge_capabilities, BridgeCapabilities::default());
         let session = &snapshot.sessions[0];
         assert!(!session.pinned && !session.archived && !session.persisted);
     }

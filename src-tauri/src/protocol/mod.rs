@@ -2,13 +2,15 @@ pub mod jsonrpc;
 pub mod sdk_adapter;
 
 use crate::domain::{
-    ApprovalRequestEvent, SessionRunStatus, SubagentEvent, UiSessionEvent,
-    UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
+    ApprovalRequestEvent, BridgeCapabilities, SessionRunStatus, StreamDeltaEvent, SubagentEvent,
+    UiSessionEvent, UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BackendEvent {
     WorkerStatus(WorkerStatus),
+    BridgeCapabilities(BridgeCapabilities),
+    StreamDelta(StreamDeltaEvent),
     SessionStatus {
         session_id: String,
         status: SessionRunStatus,

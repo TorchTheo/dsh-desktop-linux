@@ -12,7 +12,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     config::AppConfig,
-    domain::{SessionRunStatus, UiSessionEvent, WorkerStatus},
+    domain::{BridgeCapabilities, SessionRunStatus, UiSessionEvent, WorkerStatus},
     protocol::BackendEvent,
     state::AppState,
 };
@@ -38,6 +38,9 @@ pub fn run() {
             commands::restart_worker,
             commands::create_session,
             commands::send_query,
+            commands::abort_session,
+            commands::list_models,
+            commands::set_session_model,
             commands::respond_approval,
             commands::respond_user_question,
             commands::set_working_directory,
@@ -70,12 +73,22 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
             BackendEvent::WorkerStatus(status) => {
                 *state.worker_status.write().unwrap() = status.clone();
                 if matches!(status, WorkerStatus::Stopped | WorkerStatus::Error { .. }) {
+                    let capabilities = BridgeCapabilities::default();
+                    *state.bridge_capabilities.write().unwrap() = capabilities;
+                    if let Err(error) = app.emit("dsh://bridge-capabilities", capabilities) {
+                        tracing::warn!(%error, "Could not emit bridge capabilities reset");
+                    }
                     for session in state.sessions.write().unwrap().iter_mut() {
                         session.status = SessionRunStatus::Idle;
                     }
                 }
                 app.emit("dsh://worker-status", status)
             }
+            BackendEvent::BridgeCapabilities(capabilities) => {
+                *state.bridge_capabilities.write().unwrap() = capabilities;
+                app.emit("dsh://bridge-capabilities", capabilities)
+            }
+            BackendEvent::StreamDelta(event) => app.emit("dsh://stream-delta", event),
             BackendEvent::SessionStatus { session_id, status } => {
                 state.update_session(&session_id, |session| session.status = status.clone());
                 app.emit(

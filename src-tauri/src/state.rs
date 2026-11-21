@@ -12,7 +12,10 @@ use tokio::sync::{mpsc, Mutex};
 
 use crate::{
     config::AppConfig,
-    domain::{AppStateSnapshot, SessionRunStatus, SessionSummary, WorkerStatus, WorkspaceSummary},
+    domain::{
+        AppStateSnapshot, BridgeCapabilities, SessionRunStatus, SessionSummary, WorkerStatus,
+        WorkspaceSummary,
+    },
     protocol::{sdk_adapter::SdkAdapter, BackendEvent},
     storage,
 };
@@ -20,6 +23,7 @@ use crate::{
 pub(crate) struct AppState {
     pub config: RwLock<AppConfig>,
     pub worker_status: RwLock<WorkerStatus>,
+    pub bridge_capabilities: RwLock<BridgeCapabilities>,
     pub sessions: RwLock<Vec<SessionSummary>>,
     pub workspaces: RwLock<Vec<WorkspaceSummary>>,
     pub active_worker_sessions: RwLock<HashSet<String>>,
@@ -43,6 +47,7 @@ impl AppState {
         Self {
             config: RwLock::new(config),
             worker_status: RwLock::new(WorkerStatus::Idle),
+            bridge_capabilities: RwLock::new(BridgeCapabilities::default()),
             sessions: RwLock::new(sessions),
             workspaces: RwLock::new(workspaces),
             active_worker_sessions: RwLock::new(HashSet::new()),
@@ -67,6 +72,7 @@ impl AppState {
         AppStateSnapshot {
             config: self.config.read().unwrap().clone(),
             worker_status: self.worker_status.read().unwrap().clone(),
+            bridge_capabilities: *self.bridge_capabilities.read().unwrap(),
             sessions: sessions.to_vec(),
             workspaces: workspaces.to_vec(),
         }

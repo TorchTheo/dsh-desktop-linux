@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
-    env, io,
+    env, fs, io,
+    path::Path,
     process::Stdio,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -10,6 +11,7 @@ use std::{
 };
 
 use directories::BaseDirs;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -23,9 +25,10 @@ use uuid::Uuid;
 use crate::{
     config::AppConfig,
     domain::{
-        ApprovalOutcome, ApprovalRequestEvent, ImageAttachment, SessionRunStatus, SubagentEvent,
-        UiContentBlock, UiMessage, UiSessionEvent, UserQuestionCancelledEvent,
-        UserQuestionRequestEvent, WorkerStatus,
+        ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities, ImageAttachment, ProviderModels,
+        SessionModelSelection, SessionRunStatus, StreamDeltaEvent, SubagentEvent, UiContentBlock,
+        UiMessage, UiSessionEvent, UserQuestionCancelledEvent, UserQuestionRequestEvent,
+        WorkerStatus,
     },
 };
 
@@ -47,6 +50,7 @@ enum RequestKind {
 
 pub struct SdkAdapter {
     ready_status: WorkerStatus,
+    capabilities: BridgeCapabilities,
     transport: Arc<JsonRpcTransport>,
     process: AsyncMutex<ProcessGroup>,
     pending: ServerRequests,
@@ -89,6 +93,7 @@ impl SdkAdapter {
         let (incoming_tx, incoming_rx) = mpsc::unbounded_channel();
         let mut adapter = Self {
             ready_status: WorkerStatus::Starting,
+            capabilities: BridgeCapabilities::default(),
             transport: Arc::new(JsonRpcTransport::new(stdout, stdin, incoming_tx)),
             process: AsyncMutex::new(process),
             pending: ServerRequests::default(),
@@ -128,6 +133,16 @@ impl SdkAdapter {
                 return Err(error);
             }
         };
+        adapter.capabilities = match adapter.bridge_rpc("desktop/capabilities", json!({})).await {
+            Ok(capabilities) => capabilities,
+            Err(error) => {
+                tracing::debug!(%error, "DSH desktop bridge capabilities unavailable");
+                BridgeCapabilities::default()
+            }
+        };
+        let _ = adapter
+            .event_tx
+            .send(BackendEvent::BridgeCapabilities(adapter.capabilities));
         adapter.ready_status = status.clone();
         let _ = adapter.event_tx.send(BackendEvent::WorkerStatus(status));
         adapter.dispatch = Some(tokio::spawn(dispatch_messages(
@@ -154,6 +169,62 @@ impl SdkAdapter {
         self.transport
             .request(method, Some(params), RPC_TIMEOUT)
             .await
+    }
+
+    async fn bridge_rpc<T: serde::de::DeserializeOwned>(
+        &self,
+        method: &str,
+        params: Value,
+    ) -> Result<T, String> {
+        serde_json::from_value(self.rpc(method, params).await?)
+            .map_err(|error| format!("Invalid {method} response: {error}"))
+    }
+
+    pub fn capabilities(&self) -> BridgeCapabilities {
+        if self.is_running() {
+            self.capabilities
+        } else {
+            BridgeCapabilities::default()
+        }
+    }
+
+    pub async fn abort_session(&self, session_id: &str) -> Result<bool, String> {
+        #[derive(Deserialize)]
+        struct Response {
+            aborted: bool,
+        }
+        let response: Response = self
+            .bridge_rpc("desktop/session/abort", json!({"sessionId": session_id}))
+            .await?;
+        Ok(response.aborted)
+    }
+
+    pub async fn list_models(&self) -> Result<Vec<ProviderModels>, String> {
+        #[derive(Deserialize)]
+        struct Response {
+            providers: Vec<ProviderModels>,
+        }
+        let response: Response = self.bridge_rpc("desktop/models/list", json!({})).await?;
+        Ok(response.providers)
+    }
+
+    pub async fn set_session_model(
+        &self,
+        session_id: &str,
+        provider: &str,
+        model: &str,
+        reasoning_effort: Option<&str>,
+    ) -> Result<SessionModelSelection, String> {
+        self.bridge_rpc(
+            "desktop/session/set-model",
+            json!({
+                "sessionId": session_id,
+                "provider": provider,
+                "model": model,
+                "reasoningEffort": reasoning_effort,
+            }),
+        )
+        .await
     }
 
     pub async fn send_query(
@@ -292,6 +363,20 @@ impl ProcessGroup {
         command.args(["--profile", "sdk"]);
         for patch in &config.patches {
             command.arg("--patch").arg(patch);
+        }
+        if config.enable_bridge {
+            if let Some(patch) = config.resolve_bridge_patch() {
+                let resolved = fs::canonicalize(&patch).ok();
+                let already_configured = config.patches.iter().any(|configured| {
+                    Path::new(configured) == patch
+                        || resolved.as_ref().is_some_and(|resolved| {
+                            fs::canonicalize(configured).is_ok_and(|path| path == *resolved)
+                        })
+                });
+                if !already_configured {
+                    command.arg("--patch").arg(patch);
+                }
+            }
         }
         if let Some(dirs) = BaseDirs::new() {
             let local_bin = dirs.home_dir().join(".local/bin");
@@ -480,6 +565,12 @@ fn dispatch_notification(
     params: Value,
 ) {
     let event = match method {
+        "desktop.stream.delta" => {
+            let Ok(event) = serde_json::from_value::<StreamDeltaEvent>(params) else {
+                return;
+            };
+            BackendEvent::StreamDelta(event)
+        }
         "session.event" => {
             if let Some(session_id) = params["sessionId"].as_str() {
                 for event in project_session_event(session_id, &params["event"]) {
@@ -913,14 +1004,17 @@ done
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"test-sdk","version":"1"}}}'
 printf '%s\n' '{"jsonrpc":"2.0","id":"approval-rpc","method":"approval/request","params":{"sessionId":"s","toolName":"read"}}'
 printf '%s\n' '{"jsonrpc":"2.0","id":77,"method":"user-question/ask","params":{"requestId":"q","sessionId":"s","questions":[]}}'
+IFS= read -r capabilities
+test "$capabilities" = '{"id":2,"jsonrpc":"2.0","method":"desktop/capabilities","params":{}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found"}}'
 IFS= read -r approval
 test "$approval" = '{"id":"approval-rpc","jsonrpc":"2.0","result":{"outcome":"allowed-once"}}'
 IFS= read -r question
 test "$question" = '{"id":77,"jsonrpc":"2.0","result":{"cancelled":true}}'
 printf '%s\n' '{"jsonrpc":"2.0","method":"session.status","params":{"sessionId":"s","status":"idle"}}'
 IFS= read -r shutdown
-test "$shutdown" = '{"id":2,"jsonrpc":"2.0","method":"shutdown"}'
-printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{}}'
+test "$shutdown" = '{"id":3,"jsonrpc":"2.0","method":"shutdown"}'
+printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{}}'
 "#).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
 
@@ -928,6 +1022,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{}}'
             dsh_bin: path.to_string_lossy().into_owned(),
             reasoning_effort: Some("high".into()),
             patches: vec!["first patch".into(), "second".into()],
+            enable_bridge: false,
             ..AppConfig::default()
         };
         let (events, mut receiver) = mpsc::unbounded_channel();
@@ -940,6 +1035,11 @@ printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{}}'
             assert_eq!(
                 receiver.recv().await.unwrap(),
                 BackendEvent::WorkerStatus(WorkerStatus::Starting)
+            );
+            assert_eq!(adapter.capabilities(), BridgeCapabilities::default());
+            assert_eq!(
+                receiver.recv().await.unwrap(),
+                BackendEvent::BridgeCapabilities(BridgeCapabilities::default())
             );
             assert_eq!(
                 receiver.recv().await.unwrap(),
@@ -981,5 +1081,117 @@ printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{}}'
         let mut process = adapter.process.lock().await;
         assert!(process.pgid.is_none());
         assert!(process.child.try_wait().unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn worker_routes_bridge_requests_and_stream_deltas() {
+        let path = env::temp_dir().join(format!("dsh-sdk-bridge-test-{}", Uuid::new_v4()));
+        fs::write(&path, r#"#!/bin/sh
+set -eu
+test "$#" = 4
+test "$1 $2 $3" = '--profile sdk --patch'
+test -f "$4"
+IFS= read -r initialize
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"test-bridge","version":"1"}}}'
+IFS= read -r capabilities
+test "$capabilities" = '{"id":2,"jsonrpc":"2.0","method":"desktop/capabilities","params":{}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"streamDelta":true,"abort":true,"modelControl":true}}'
+printf '%s\n' '{"jsonrpc":"2.0","method":"desktop.stream.delta","params":{"sessionId":"s","blockType":"thinking","delta":"first","reset":true}}'
+printf '%s\n' '{"jsonrpc":"2.0","method":"desktop.stream.delta","params":{"sessionId":"s","blockType":"thinking","delta":" next"}}'
+IFS= read -r models
+test "$models" = '{"id":3,"jsonrpc":"2.0","method":"desktop/models/list","params":{}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"providers":[{"id":"p","name":"Provider","models":[{"id":"m","name":"Model"}]}]}}'
+IFS= read -r select
+test "$select" = '{"id":4,"jsonrpc":"2.0","method":"desktop/session/set-model","params":{"model":"m","provider":"p","reasoningEffort":"high","sessionId":"s"}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":4,"result":{"provider":"p","model":"m","reasoningEffort":"high"}}'
+IFS= read -r select
+test "$select" = '{"id":5,"jsonrpc":"2.0","method":"desktop/session/set-model","params":{"model":"m","provider":"p","reasoningEffort":null,"sessionId":"s"}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":5,"result":{"provider":"p","model":"m","reasoningEffort":null}}'
+IFS= read -r abort
+test "$abort" = '{"id":6,"jsonrpc":"2.0","method":"desktop/session/abort","params":{"sessionId":"s"}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"aborted":true}}'
+IFS= read -r abort
+test "$abort" = '{"id":7,"jsonrpc":"2.0","method":"desktop/session/abort","params":{"sessionId":"s"}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":7,"result":{"aborted":false}}'
+IFS= read -r shutdown
+test "$shutdown" = '{"id":8,"jsonrpc":"2.0","method":"shutdown"}'
+printf '%s\n' '{"jsonrpc":"2.0","id":8,"result":{}}'
+"#).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+
+        let config = AppConfig {
+            dsh_bin: path.to_string_lossy().into_owned(),
+            patches: vec![],
+            ..AppConfig::default()
+        };
+        let (events, mut receiver) = mpsc::unbounded_channel();
+        let adapter = SdkAdapter::start(&config, events).await;
+        fs::remove_file(path).unwrap();
+        let adapter = adapter.unwrap();
+        timeout(Duration::from_secs(5), async {
+            let capabilities = BridgeCapabilities {
+                stream_delta: true,
+                abort: true,
+                model_control: true,
+            };
+            assert_eq!(adapter.capabilities(), capabilities);
+            assert_eq!(
+                receiver.recv().await.unwrap(),
+                BackendEvent::WorkerStatus(WorkerStatus::Starting)
+            );
+            assert_eq!(
+                receiver.recv().await.unwrap(),
+                BackendEvent::BridgeCapabilities(capabilities)
+            );
+            assert_eq!(
+                receiver.recv().await.unwrap(),
+                BackendEvent::WorkerStatus(WorkerStatus::Ready {
+                    server_name: "test-bridge".into(),
+                    server_version: "1".into(),
+                })
+            );
+            for (delta, reset) in [("first", true), (" next", false)] {
+                assert_eq!(
+                    receiver.recv().await.unwrap(),
+                    BackendEvent::StreamDelta(StreamDeltaEvent {
+                        session_id: "s".into(),
+                        block_type: "thinking".into(),
+                        delta: delta.into(),
+                        reset,
+                    })
+                );
+            }
+
+            assert_eq!(
+                adapter.list_models().await.unwrap(),
+                vec![ProviderModels {
+                    id: "p".into(),
+                    name: "Provider".into(),
+                    models: vec![crate::domain::ModelEntry {
+                        id: "m".into(),
+                        name: "Model".into(),
+                        description: None,
+                    }],
+                }]
+            );
+            for effort in [Some("high"), None] {
+                assert_eq!(
+                    adapter
+                        .set_session_model("s", "p", "m", effort)
+                        .await
+                        .unwrap(),
+                    SessionModelSelection {
+                        provider: "p".into(),
+                        model: "m".into(),
+                        reasoning_effort: effort.map(str::to_owned),
+                    }
+                );
+            }
+            assert!(adapter.abort_session("s").await.unwrap());
+            assert!(!adapter.abort_session("s").await.unwrap());
+            adapter.shutdown().await;
+        })
+        .await
+        .unwrap();
     }
 }
