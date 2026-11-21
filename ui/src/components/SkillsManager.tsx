@@ -68,6 +68,7 @@ export function SkillsManager() {
     try {
       const list = await api.listSkills(cwd)
       setSkills(list)
+      useAppStore.setState({ skills: list })
     } catch (err) {
       useAppStore.setState({ errorBanner: `读取技能列表失败：${String(err)}` })
     } finally {

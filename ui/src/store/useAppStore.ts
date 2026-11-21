@@ -14,6 +14,7 @@ import type {
   ProviderModels,
   SessionSummary,
   SessionTelemetry,
+  SkillInfo,
   SubagentEvent,
   UiContentBlock,
   UiMessage,
@@ -63,6 +64,7 @@ interface AppStore {
   pluginRestartRequired: boolean
   providers: ProviderModels[]
   agentPresets: AgentPresetInfo[]
+  skills: SkillInfo[]
   defaultPresetId: string | null
   sessionPresetById: Record<string, string>
   workspaces: WorkspaceSummary[]
@@ -108,6 +110,7 @@ interface AppStore {
   refreshSessions: () => Promise<void>
   fetchModels: () => Promise<void>
   fetchAgentPresets: () => Promise<void>
+  fetchSkills: (cwd?: string | null) => Promise<void>
   setDefaultAgentPreset: (presetId: string) => Promise<void>
   setSessionPreset: (presetId: string) => Promise<void>
   forkSession: (sessionId: string) => Promise<SessionSummary | null>
@@ -178,6 +181,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   pluginRestartRequired: false,
   providers: [],
   agentPresets: [],
+  skills: [],
   defaultPresetId: null,
   sessionPresetById: {},
   workspaces: [],
@@ -257,6 +261,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }
         if (bridgeCapabilities.agentPresets) {
           void get().fetchAgentPresets()
+        }
+        if (bridgeCapabilities.skillsManager) {
+          void get().fetchSkills()
         }
       },
 
@@ -497,6 +504,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
       if (caps.agentPresets) {
         void get().fetchAgentPresets()
+      }
+      if (caps.skillsManager) {
+        void get().fetchSkills()
       }
       if (initialId) {
         void get().loadSessionHistory(initialId)
@@ -997,6 +1007,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ workerStatus, errorBanner: null, pluginRestartRequired: false })
     } catch (error) {
       set({ errorBanner: `重启后端失败：${String(error)}` })
+    }
+  },
+
+  fetchSkills: async (cwd) => {
+    try {
+      const st = get()
+      const activeSess = st.sessions.find((s) => s.sessionId === st.activeSessionId)
+      const targetCwd = cwd ?? activeSess?.cwd ?? st.config?.defaultCwd ?? null
+      const skills = await api.listSkills(targetCwd)
+      set({ skills })
+    } catch {
+      // Ignore if skills service is unavailable
     }
   },
 

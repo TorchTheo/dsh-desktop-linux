@@ -10,11 +10,13 @@ import { PresetSelector } from './PresetSelector'
 interface SlashCommandItem {
   cmd: string
   desc: string
+  kind: 'command' | 'skill'
+  badge?: string
 }
 
-const SLASH_COMMANDS: SlashCommandItem[] = [
-  { cmd: '/compact', desc: '压缩当前会话上下文，释放上下文窗口' },
-  { cmd: '/goal', desc: '开启目标驱动模式，持续推进直至完成' },
+const BUILTIN_SLASH_COMMANDS: SlashCommandItem[] = [
+  { cmd: '/compact', desc: '压缩当前会话上下文，释放上下文窗口', kind: 'command', badge: '指令' },
+  { cmd: '/goal', desc: '开启目标驱动模式，持续推进直至完成', kind: 'command', badge: '指令' },
 ]
 
 function formatCompactTokens(n: number): string {
@@ -85,6 +87,8 @@ export function Composer({ centered = false }: ComposerProps) {
   const flushQueuedMessage = useAppStore((s) => s.flushQueuedMessage)
   const jobsBySession = useAppStore((s) => s.jobsBySession)
   const killSessionJob = useAppStore((s) => s.killSessionJob)
+  const skills = useAppStore((s) => s.skills)
+  const fetchSkills = useAppStore((s) => s.fetchSkills)
 
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
   const cwd = activeSession?.cwd ?? config?.defaultCwd ?? ''
@@ -95,12 +99,39 @@ export function Composer({ centered = false }: ComposerProps) {
   const canAbort = Boolean(isRunning && bridgeCapabilities.abort && activeSessionId)
   const isAborting = Boolean(activeSessionId && abortingSessionId === activeSessionId)
 
+  useEffect(() => {
+    if (workerStatus.state === 'ready' && skills.length === 0) {
+      void fetchSkills(cwd || null)
+    }
+  }, [workerStatus.state, cwd, skills.length, fetchSkills])
+
+  const allSlashItems = useMemo<SlashCommandItem[]>(() => {
+    const skillItems: SlashCommandItem[] = skills.map((sk) => ({
+      cmd: `/${sk.name}`,
+      desc: sk.description || '调用此技能',
+      kind: 'skill',
+      badge:
+        sk.source === 'user-dsh'
+          ? '用户技能'
+          : sk.source === 'project-dsh'
+            ? '工作区技能'
+            : sk.source === 'bundled'
+              ? '内置技能'
+              : sk.source || '技能',
+    }))
+    return [...BUILTIN_SLASH_COMMANDS, ...skillItems]
+  }, [skills])
+
   const slashQuery = text.startsWith('/') && !text.includes(' ') && !text.includes('\n') ? text : null
   const matchingCommands = useMemo(() => {
     if (slashQuery === null) return []
-    const lower = slashQuery.toLowerCase()
-    return SLASH_COMMANDS.filter((item) => item.cmd.toLowerCase().startsWith(lower))
-  }, [slashQuery])
+    const lower = slashQuery.slice(1).toLowerCase()
+    if (!lower) return allSlashItems
+    return allSlashItems.filter(
+      (item) =>
+        item.cmd.toLowerCase().includes(lower) || item.desc.toLowerCase().includes(lower),
+    )
+  }, [slashQuery, allSlashItems])
 
   const slashOpen = !slashDismissed && slashQuery !== null && matchingCommands.length > 0
 
@@ -228,10 +259,10 @@ export function Composer({ centered = false }: ComposerProps) {
             className="absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5]"
           >
             <div className="flex items-center justify-between border-b border-[#ECEAE2] bg-[#F4F3EE] px-3 py-1.5 text-[11px] text-[#8A8880]">
-              <span>可用指令</span>
-              <span>↑↓ 选择 · Tab 补全 · Esc 关闭</span>
+              <span>指令与技能（共 {matchingCommands.length} 项）</span>
+              <span>↑↓ 选择 · Tab/Enter 选中 · Esc 关闭</span>
             </div>
-            <ul className="divide-y divide-[#ECEAE2] py-0.5">
+            <ul className="max-h-72 divide-y divide-[#ECEAE2] overflow-y-auto py-0.5">
               {matchingCommands.map((item, idx) => {
                 const selected = idx === slashIndex
                 return (
@@ -251,10 +282,23 @@ export function Composer({ centered = false }: ComposerProps) {
                           : 'bg-[#FAF9F5] text-[#575652] hover:bg-[#F4F3EE]'
                       }`}
                     >
-                      <span className="font-mono-tabular font-semibold text-[#1E4D9B]">
-                        {item.cmd}
+                      <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+                        <span
+                          className={`font-mono-tabular font-semibold ${
+                            item.kind === 'skill' ? 'text-[#246A4D]' : 'text-[#1E4D9B]'
+                          }`}
+                        >
+                          {item.cmd}
+                        </span>
+                        {item.badge && (
+                          <span className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-1 py-0.2 font-mono-tabular text-[9px] text-[#8A8880]">
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                      <span className="min-w-0 flex-1 truncate text-right text-[#575652]">
+                        {item.desc}
                       </span>
-                      <span className="truncate text-[#575652]">{item.desc}</span>
                     </button>
                   </li>
                 )
