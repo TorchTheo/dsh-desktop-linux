@@ -99,6 +99,16 @@ export function SettingsModal() {
             </label>
           </div>
 
+          <label className="flex items-center gap-2 pt-1 text-[#c9d1d9]">
+            <input
+              type="checkbox"
+              checked={draft.enableBridge}
+              onChange={(e) => setDraft({ ...draft, enableBridge: e.target.checked })}
+              className="rounded border-[#30363d] bg-[#0d1117]"
+            />
+            <span>启用 Cordis 桥接插件（流式打字机 / 实时停止生成 / 模型热切）</span>
+          </label>
+
           <label className="block space-y-1">
             <span className="text-[#8b949e]">默认工作目录</span>
             <input

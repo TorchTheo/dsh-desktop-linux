@@ -2,6 +2,7 @@ import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react
 import { FolderOpen, ImagePlus, Send, Square, X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import type { ImageAttachment } from '../types/domain'
+import { ModelSelector } from './ModelSelector'
 
 const SLASH_HINTS = [
   { cmd: '/compact', desc: '压缩当前会话上下文' },
@@ -86,17 +87,17 @@ export function Composer() {
   return (
     <div className="border-t border-[#21262d] bg-[#0b0f14] px-6 py-3">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-2 flex items-center justify-between text-[11px] text-[#8b949e]">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#8b949e]">
           <button
             type="button"
             onClick={() => void pickAndSetWorkingDirectory()}
-            className="inline-flex max-w-[75%] items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-[#161b22] hover:text-[#e6edf3]"
+            className="inline-flex max-w-[45%] items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-[#161b22] hover:text-[#e6edf3]"
             title="点击切换工作目录"
           >
             <FolderOpen className="h-3.5 w-3.5 shrink-0 text-blue-400" />
             <span className="truncate">{cwd || '选择工作目录'}</span>
           </button>
-          <span>Enter 发送 · Shift+Enter 换行</span>
+          <ModelSelector />
         </div>
 
         {showSlashHints && (
