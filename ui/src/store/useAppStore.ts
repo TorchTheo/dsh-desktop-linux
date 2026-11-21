@@ -525,7 +525,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   selectSession: async (sessionId) => {
-    set({ activeSessionId: sessionId })
+    set((state) => ({
+      activeSessionId: sessionId,
+      activeView:
+        state.activeView === 'plugin-panel' || state.activeView === 'plugins'
+          ? 'studio'
+          : state.activeView,
+    }))
     await get().loadSessionHistory(sessionId)
   },
 
@@ -537,6 +543,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set((state) => ({
         sessions: [session, ...state.sessions],
         activeSessionId: session.sessionId,
+        activeView:
+          state.activeView === 'plugin-panel' || state.activeView === 'plugins'
+            ? 'studio'
+            : state.activeView,
         loadedHistoryIds: { ...state.loadedHistoryIds, [session.sessionId]: true },
         errorBanner: null,
       }))
