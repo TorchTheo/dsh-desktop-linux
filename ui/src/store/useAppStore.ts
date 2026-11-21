@@ -23,6 +23,8 @@ export interface SessionMeta {
   reasoningEffort?: string | null
 }
 
+export type ActiveView = 'studio' | 'trajectory'
+
 export interface StreamingDraft {
   thinking: string
   text: string
@@ -46,6 +48,8 @@ interface AppStore {
   selectedWorkspaceId: string | null
   searchQuery: string
   showArchived: boolean
+  activeView: ActiveView
+  sidebarOpen: boolean
   inspectorOpen: boolean
   loadingHistoryId: string | null
   abortingSessionId: string | null
@@ -61,6 +65,8 @@ interface AppStore {
 
   bootstrap: () => Promise<() => void>
   setSettingsOpen: (open: boolean) => void
+  setActiveView: (view: ActiveView) => void
+  setSidebarOpen: (open: boolean) => void
   setInspectorOpen: (open: boolean) => void
   setSelectedWorkspaceId: (id: string | null) => void
   setSearchQuery: (q: string) => void
@@ -94,7 +100,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   selectedWorkspaceId: null,
   searchQuery: '',
   showArchived: false,
-  inspectorOpen: true,
+  activeView: 'studio',
+  sidebarOpen: true,
+  inspectorOpen: false,
   loadingHistoryId: null,
   abortingSessionId: null,
   loadedHistoryIds: {},
@@ -108,6 +116,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   settingsOpen: false,
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setActiveView: (view) => set({ activeView: view }),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setInspectorOpen: (open) => set({ inspectorOpen: open }),
   setSelectedWorkspaceId: (id) => set({ selectedWorkspaceId: id }),
   setSearchQuery: (q) => set({ searchQuery: q }),

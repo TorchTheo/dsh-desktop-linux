@@ -1,7 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+  --paper-canvas: #f4f3ee;
+  --paper-surface: #faf9f5;
+  --paper-recessed: #eceae2;
+  --paper-hover: #e5e2d8;
+  --ink-hairline: #d8d5cb;
+  --ink-hairline-strong: #c2beb2;
+  --ink-primary: #141413;
+  --ink-secondary: #575652;
+  --ink-muted: #8a8880;
+  --bauhaus-red: #d13b27;
+  --bauhaus-blue: #1e4d9b;
+  --bauhaus-ochre: #c4881c;
+  --bauhaus-green: #246a4d;
 }
 
 html,
@@ -11,9 +24,36 @@ body,
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: #0d1117;
-  color: #e6edf3;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans CJK SC", sans-serif;
+  background-color: var(--paper-canvas);
+  color: var(--ink-primary);
+  font-family:
+    "Inter",
+    "Noto Sans CJK SC",
+    "PingFang SC",
+    "Microsoft YaHei",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+.font-editorial {
+  font-family:
+    "Newsreader",
+    "Noto Serif CJK SC",
+    "Songti SC",
+    Georgia,
+    serif;
+}
+
+.font-mono-tabular {
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.bauhaus-dot-grid {
+  background-image: radial-gradient(circle, #cbc7bc 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 ::-webkit-scrollbar {
@@ -26,23 +66,55 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: #d0cdc2;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #484f58;
+  background: #b5b1a5;
+}
+
+/* Editorial Markdown on Archival Paper */
+.markdown-body {
+  color: var(--ink-primary);
+  line-height: 1.72;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--ink-primary);
+  margin: 1.1em 0 0.45em;
+}
+
+.markdown-body h1 {
+  font-size: 1.25rem;
+}
+
+.markdown-body h2 {
+  font-size: 1.08rem;
+}
+
+.markdown-body h3 {
+  font-size: 0.98rem;
+}
+
+.markdown-body p {
+  margin: 0.5rem 0;
 }
 
 .markdown-body pre {
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
+  background: var(--paper-recessed);
+  border: 1px solid var(--ink-hairline);
+  border-radius: 0.375rem;
+  padding: 0.85rem 1rem;
   overflow-x: auto;
-  margin: 0.5rem 0;
-  font-size: 0.85rem;
-  line-height: 1.5;
+  margin: 0.75rem 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--ink-primary);
 }
 
 .markdown-body code {
@@ -50,20 +122,18 @@ body,
 }
 
 .markdown-body :not(pre) > code {
-  background: #21262d;
-  padding: 0.15rem 0.35rem;
+  background: var(--paper-recessed);
+  border: 1px solid var(--ink-hairline);
+  padding: 0.1rem 0.35rem;
   border-radius: 0.25rem;
-  font-size: 0.85em;
-}
-
-.markdown-body p {
-  margin: 0.4rem 0;
+  font-size: 0.84em;
+  color: #1c1b18;
 }
 
 .markdown-body ul,
 .markdown-body ol {
   padding-left: 1.4rem;
-  margin: 0.4rem 0;
+  margin: 0.5rem 0;
 }
 
 .markdown-body ul {
@@ -74,20 +144,34 @@ body,
   list-style-type: decimal;
 }
 
+.markdown-body blockquote {
+  border-left: 2px solid var(--ink-hairline-strong);
+  padding-left: 0.9rem;
+  color: var(--ink-secondary);
+  margin: 0.65rem 0;
+}
+
 .markdown-body table {
   border-collapse: collapse;
-  margin: 0.5rem 0;
+  margin: 0.75rem 0;
   width: 100%;
-  font-size: 0.875rem;
+  font-size: 0.84rem;
 }
 
 .markdown-body th,
 .markdown-body td {
-  border: 1px solid #30363d;
-  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--ink-hairline);
+  padding: 0.4rem 0.7rem;
   text-align: left;
 }
 
 .markdown-body th {
-  background: #161b22;
+  background: var(--paper-recessed);
+  font-weight: 600;
+}
+
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--ink-hairline);
+  margin: 1rem 0;
 }
