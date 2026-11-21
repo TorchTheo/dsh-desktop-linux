@@ -29,7 +29,7 @@ use crate::{
         BackgroundJobInfo, BridgeCapabilities, ClientPluginModule, HostRuntimeInfo,
         ImageAttachment, PluginBundleInfo, ProviderModels, ProxiedHttpResponse, SessionJobsEvent,
         SessionModelSelection, SessionPermission, SessionPresetResult, SessionRunStatus,
-        SessionTelemetry, SessionTelemetryEvent, StreamDeltaEvent, SubagentEvent, UiContentBlock,
+        SessionTelemetry, SessionTelemetryEvent, SkillInfo, StreamDeltaEvent, SubagentEvent, UiContentBlock,
         UiMessage, UiSessionEvent, UserQuestionCancelledEvent, UserQuestionRequestEvent,
         WorkerStatus,
     },
@@ -347,6 +347,14 @@ impl SdkAdapter {
             json!(Params { session_id, meta }),
         )
         .await
+    }
+
+    pub async fn list_skills(&self, cwd: Option<&str>) -> Result<Vec<SkillInfo>, String> {
+        if !self.capabilities.skills_manager {
+            return Ok(Vec::new());
+        }
+        self.bridge_rpc("desktop/skills/list", json!({ "cwd": cwd }))
+            .await
     }
 
     pub async fn list_models(&self) -> Result<Vec<ProviderModels>, String> {

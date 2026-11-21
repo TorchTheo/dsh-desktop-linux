@@ -97,6 +97,18 @@ pub struct BridgeCapabilities {
     pub interrupt_and_send: bool,
     #[serde(default)]
     pub session_jobs: bool,
+    #[serde(default)]
+    pub skills_manager: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillInfo {
+    pub name: String,
+    pub description: String,
+    pub source: String,
+    pub path: String,
+    pub editable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

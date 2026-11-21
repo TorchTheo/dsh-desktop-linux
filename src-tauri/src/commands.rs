@@ -20,10 +20,11 @@ use crate::{
         AgentPresetCatalog, AppStateSnapshot, ApprovalOutcome, BackgroundJobInfo,
         ClientPluginModule, HostRuntimeInfo, ImageAttachment, PluginBundleInfo, ProviderModels,
         ProxiedHttpResponse, RewindResult, SessionModelSelection, SessionPermission,
-        SessionPresetResult, SessionRunStatus, SessionSummary, UiSessionDetail, WorkerStatus,
+        SessionPresetResult, SessionRunStatus, SessionSummary, SkillInfo, UiSessionDetail, WorkerStatus,
         WorkspaceSummary,
     },
     protocol::sdk_adapter::SessionMeta,
+    skills::{self, SkillRoots},
     state::{now_millis, AppState},
     storage::{self, snapshot},
 };
@@ -433,6 +434,46 @@ pub(crate) async fn abort_session(
     session_id: String,
 ) -> Result<bool, String> {
     state.sdk().await?.abort_session(&session_id).await
+}
+
+#[tauri::command]
+pub(crate) async fn list_skills(
+    state: State<'_, AppState>,
+    cwd: Option<String>,
+) -> Result<Vec<SkillInfo>, String> {
+    let cwd = cwd.or_else(|| {
+        let cwd = state.config.read().unwrap().default_cwd.clone();
+        (!cwd.is_empty()).then_some(cwd)
+    });
+    let discovered = match state.sdk().await {
+        Ok(sdk) => sdk.list_skills(cwd.as_deref()).await?,
+        Err(_) => Vec::new(),
+    };
+    tokio::task::spawn_blocking(move || Ok(SkillRoots::new(cwd.as_deref())?.merge(discovered)))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+pub(crate) fn read_skill_content(path: String) -> Result<String, String> {
+    skills::read(Path::new(&path))
+}
+
+#[tauri::command]
+pub(crate) fn save_user_skill(
+    name: String,
+    description: String,
+    content: String,
+    scope: String,
+    cwd: Option<String>,
+) -> Result<SkillInfo, String> {
+    let workspace = if scope == "workspace" { cwd.as_deref() } else { None };
+    SkillRoots::new(workspace)?.save(&name, &description, &content, &scope)
+}
+
+#[tauri::command]
+pub(crate) fn delete_user_skill(path: String, cwd: Option<String>) -> Result<(), String> {
+    SkillRoots::new(cwd.as_deref())?.delete(Path::new(&path))
 }
 
 #[tauri::command]

@@ -4,6 +4,7 @@ pub mod domain;
 pub mod logging;
 mod native;
 pub mod protocol;
+mod skills;
 mod state;
 pub mod storage;
 
@@ -81,6 +82,10 @@ pub fn run() {
             commands::kill_session_job,
             commands::abort_session,
             commands::list_models,
+            commands::list_skills,
+            commands::read_skill_content,
+            commands::save_user_skill,
+            commands::delete_user_skill,
             commands::set_session_model,
             commands::set_session_permission,
             commands::respond_approval,

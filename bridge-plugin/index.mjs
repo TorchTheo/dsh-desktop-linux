@@ -1,14 +1,17 @@
 import { setTimeout as delay } from 'node:timers/promises'
 import { realpathSync } from 'node:fs'
+import { realpath, stat } from 'node:fs/promises'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
 // Resolve from the running DSH entry point, including global npm bin symlinks.
 const requireFromDsh = createRequire(realpathSync(process.argv[1]))
-const [sdk, protocol, agentModule] = await Promise.all([
+const [sdk, protocol, agentModule, homePaths] = await Promise.all([
   '@deepseek-ai/dsh-sdk-jsonrpc-server',
   '@deepseek-ai/dsh-sdk-protocol',
   '@deepseek-ai/dsh-agent',
+  '@deepseek-ai/dsh-home-paths',
 ].map(specifier => import(pathToFileURL(requireFromDsh.resolve(specifier)).href)))
 
 const { HarnessSdkJsonRpcServer } = sdk
@@ -28,6 +31,50 @@ function requiredString(value, field) {
 function requiredBoolean(value, field) {
   if (typeof value !== 'boolean') throw new TypeError(`${field} requires a boolean`)
   return value
+}
+
+async function listSkills(ctx, params) {
+  const requestedCwd = params?.cwd
+  const cwd = resolve(requestedCwd == null
+    ? ctx.get('workingDirectory')?.defaultDirectory ?? process.cwd()
+    : requiredString(requestedCwd, 'cwd'))
+  const registry = ctx.get('skills')
+  if (!registry) return []
+
+  // Filesystem providers can be mounted in the default preset's scope.
+  const presets = ctx.get('agentPresets')
+  const lease = await presets?.acquireScope?.().catch(() => undefined)
+  let skills
+  try {
+    skills = await registry.list({ cwd, scope: lease?.key })
+  } finally {
+    await lease?.[Symbol.asyncDispose]()
+  }
+  let projectRoot = cwd
+  while (!(await stat(join(projectRoot, '.git')).catch(() => null))) {
+    const parent = dirname(projectRoot)
+    if (parent === projectRoot) {
+      projectRoot = cwd
+      break
+    }
+    projectRoot = parent
+  }
+  const roots = {
+    'user-dsh': join(homePaths.resolveDshHome(), 'skills'),
+    'user-agents': join(homePaths.resolveAgentsHome(), 'skills'),
+    'project-dsh': join(projectRoot, '.dsh', 'skills'),
+    'project-agents': join(projectRoot, '.agents', 'skills'),
+  }
+  return Promise.all(skills.map(async ({ name, description, source, path = '' }) => {
+    const root = Object.hasOwn(roots, source) ? roots[source] : undefined
+    let editable = false
+    if (root && isAbsolute(path) && basename(path) === 'SKILL.md') {
+      const realPath = await realpath(path).catch(() => null)
+      // A managed bundle is an immediate child of the configured skill root.
+      editable = realPath === path && dirname(dirname(path)) === root
+    }
+    return { name, description, source, path, editable }
+  }))
 }
 
 async function hostInfo(ctx) {
@@ -357,7 +404,11 @@ html[data-dsh-desktop-theme='bauhaus'],
           sessionActions: true,
           interruptAndSend: true,
           sessionJobs: true,
+          skillsManager: true,
         }
+      case 'desktop/skills/list':
+        await ctx.get('loader')?.await()
+        return listSkills(ctx, params)
       case 'desktop/host/info':
         return hostInfo(ctx)
       case 'desktop/client-plugins/list': {
