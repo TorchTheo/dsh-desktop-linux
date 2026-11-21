@@ -315,7 +315,7 @@ export function TrajectoryView() {
 
   const [filter, setFilter] = useState<FilterKind>('all')
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
-  const [collapsedTurns, setCollapsedTurns] = useState<Record<string, boolean>>({})
+  const [expandedTurns, setExpandedTurns] = useState<Record<string, boolean>>({})
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : []
@@ -374,10 +374,10 @@ export function TrajectoryView() {
     window.setTimeout(() => setCopiedField(null), 1400)
   }
 
-  const toggleAllTurns = (collapse: boolean) => {
+  const toggleAllTurns = (expand: boolean) => {
     const next: Record<string, boolean> = {}
-    for (const turn of allTurns) next[turn.id] = collapse
-    setCollapsedTurns(next)
+    for (const turn of allTurns) next[turn.id] = expand
+    setExpandedTurns(next)
   }
 
   const filterTabs: { id: FilterKind; label: string; count: number }[] = [
@@ -471,31 +471,34 @@ export function TrajectoryView() {
             </span>
           </div>
 
-          <div className="flex h-2 w-full overflow-hidden rounded-sm bg-[#ECEAE2]">
-            {durationSummary.thinking > 0 && (
-              <div
-                style={{ width: `${(durationSummary.thinking / durationSummary.total) * 100}%` }}
-                className="bg-[#1E4D9B]"
-              />
-            )}
-            {durationSummary.tool > 0 && (
-              <div
-                style={{ width: `${(durationSummary.tool / durationSummary.total) * 100}%` }}
-                className="bg-[#C4881C]"
-              />
-            )}
-            {durationSummary.response > 0 && (
-              <div
-                style={{ width: `${(durationSummary.response / durationSummary.total) * 100}%` }}
-                className="bg-[#246A4D]"
-              />
-            )}
-            {durationSummary.subagent > 0 && (
-              <div
-                style={{ width: `${(durationSummary.subagent / durationSummary.total) * 100}%` }}
-                className="bg-[#575652]"
-              />
-            )}
+          <div className="mt-2 space-y-1.5">
+            {[
+              { label: "思考推理", ms: durationSummary.thinking, color: "#1E4D9B" },
+              { label: "工具调用", ms: durationSummary.tool, color: "#C4881C" },
+              { label: "回复生成", ms: durationSummary.response, color: "#246A4D" },
+              ...(durationSummary.subagent > 0
+                ? [{ label: "子代理", ms: durationSummary.subagent, color: "#575652" }]
+                : []),
+            ].map((lane) => {
+              const pct = Math.round((lane.ms / durationSummary.total) * 100)
+              return (
+                <div key={lane.label} className="grid grid-cols-[72px_1fr_84px] items-center gap-2 text-[11px]">
+                  <span className="flex items-center gap-1.5 text-[#575652]">
+                    <span className="h-2 w-2 shrink-0 rounded-xs" style={{ backgroundColor: lane.color }} />
+                    {lane.label}
+                  </span>
+                  <div className="h-2 w-full overflow-hidden rounded-sm bg-[#ECEAE2]">
+                    <div
+                      style={{ width: `${Math.max(lane.ms > 0 ? 2 : 0, pct)}%`, backgroundColor: lane.color }}
+                      className="h-full rounded-sm"
+                    />
+                  </div>
+                  <span className="font-mono-tabular text-right text-[10px] text-[#575652]">
+                    {formatMs(lane.ms)} · {pct}%
+                  </span>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -513,7 +516,7 @@ export function TrajectoryView() {
         <div className="flex min-h-0 flex-1 gap-4 p-4">
           <div className="min-w-0 flex-[3] space-y-3 overflow-y-auto pr-1">
             {filteredTurns.map((turn) => {
-              const collapsed = Boolean(collapsedTurns[turn.id])
+              const collapsed = !expandedTurns[turn.id]
               const turnTotal = Math.max(1, turn.totalDurationMs)
               return (
                 <section
@@ -523,7 +526,7 @@ export function TrajectoryView() {
                   <button
                     type="button"
                     onClick={() =>
-                      setCollapsedTurns((prev) => ({ ...prev, [turn.id]: !prev[turn.id] }))
+                      setExpandedTurns((prev) => ({ ...prev, [turn.id]: !prev[turn.id] }))
                     }
                     className="flex w-full flex-col gap-2 bg-[#ECEAE2]/55 px-3.5 py-2.5 text-left transition hover:bg-[#ECEAE2]"
                   >

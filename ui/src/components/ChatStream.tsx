@@ -4,7 +4,9 @@ import remarkGfm from 'remark-gfm'
 import {
   AlertCircle,
   Bot,
+  Check,
   ChevronDown,
+  Copy,
   ChevronRight,
   FolderGit2,
   Loader2,
@@ -44,6 +46,48 @@ function formatJson(value: unknown): string {
   } catch {
     return String(value)
   }
+}
+
+function extractCopyText(blocks: UiContentBlock[]): string {
+  return blocks
+    .map((b) => {
+      if (b.type === "text") return b.text
+      if (b.type === "thinking") return b.thinking
+      if (b.type === "toolUse") return `[${b.name}] ${formatJson(b.input)}`
+      if (b.type === "toolResult") return formatJson(b.content)
+      return ""
+    })
+    .filter(Boolean)
+    .join("\n\n")
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  if (!text.trim()) return null
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void navigator.clipboard?.writeText(text)
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1400)
+      }}
+      title="复制内容"
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-[#8A8880] transition hover:bg-[#ECEAE2] hover:text-[#141413]"
+    >
+      {copied ? (
+        <>
+          <Check className="h-3 w-3 text-[#246A4D]" />
+          <span className="text-[#246A4D]">已复制</span>
+        </>
+      ) : (
+        <>
+          <Copy className="h-3 w-3" />
+          <span>复制</span>
+        </>
+      )}
+    </button>
+  )
 }
 
 function formatClock(ms: number): string {
@@ -541,8 +585,9 @@ export function ChatStream() {
                       <div className="text-[14.5px] leading-relaxed text-[#141413]">
                         {group.userMessage.blocks.map((block, idx) => renderBlock(block, idx))}
                       </div>
-                      <div className="mt-1.5 text-right font-mono-tabular text-[10px] text-[#8A8880]">
-                        {formatClock(group.timestamp)}
+                      <div className="mt-1.5 flex items-center justify-end gap-2 font-mono-tabular text-[10px] text-[#8A8880]">
+                        <CopyButton text={extractCopyText(group.userMessage.blocks)} />
+                        <span>{formatClock(group.timestamp)}</span>
                       </div>
                     </article>
                     <div
@@ -588,8 +633,9 @@ export function ChatStream() {
                       </div>
                     )}
 
-                    <div className="mt-1 font-mono-tabular text-[10px] text-[#8A8880]">
-                      {formatClock(group.timestamp)}
+                    <div className="mt-1.5 flex items-center gap-2 font-mono-tabular text-[10px] text-[#8A8880]">
+                      <span>{formatClock(group.timestamp)}</span>
+                      <CopyButton text={extractCopyText(group.finalBlocks.length > 0 ? group.finalBlocks : group.processBlocks)} />
                     </div>
                   </article>
                 </div>

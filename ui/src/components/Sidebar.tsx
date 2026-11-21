@@ -117,8 +117,8 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-68 shrink-0 flex-col py-3 pl-3">
-      <div className="flex h-full flex-col overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]">
+    <aside className="flex h-full min-h-0 w-68 shrink-0 flex-col py-3 pl-3">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]">
         <div className="flex items-center justify-between border-b border-[#D8D5CB] px-3.5 py-2.5">
           <span className="text-xs font-semibold tracking-wide text-[#141413]">工作区与会话</span>
           <button
@@ -146,7 +146,7 @@ export function Sidebar() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-2 py-2">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2">
           {tree.length === 0 ? (
             <div className="px-3 py-10 text-center text-xs text-[#8A8880]">
               {searchQuery ? '未找到匹配的会话' : '暂无工作区或会话'}
