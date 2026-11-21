@@ -570,18 +570,41 @@ export function TrajectoryView() {
                     </div>
 
                     {turn.steps.length > 0 && (
-                      <div className="flex h-1.5 w-full overflow-hidden rounded-sm bg-[#D8D5CB]/70">
-                        {turn.steps.map((step) => (
-                          <div
-                            key={step.id}
-                            style={{
-                              width: `${Math.max(2, (step.durationMs / turnTotal) * 100)}%`,
-                              backgroundColor: stepBarColor(step),
-                            }}
-                            className="h-full border-r border-[#FAF9F5]/60 last:border-r-0"
-                            title={`${step.title} · ${formatMs(step.durationMs)}`}
-                          />
-                        ))}
+                      <div className="mt-1 space-y-1 border-t border-[#D8D5CB]/70 pt-2">
+                        {turn.steps.map((step) => {
+                          const leftPct = Math.min(92, (step.offsetMs / turnTotal) * 100)
+                          const widthPct = Math.max(
+                            4,
+                            Math.min(100 - leftPct, (step.durationMs / turnTotal) * 100),
+                          )
+                          return (
+                            <div
+                              key={step.id}
+                              className="grid grid-cols-[112px_1fr_56px] items-center gap-2 text-[10px]"
+                            >
+                              <span className="flex min-w-0 items-center gap-1.5 text-[#575652]">
+                                <span
+                                  className="h-1.5 w-1.5 shrink-0 rounded-xs"
+                                  style={{ backgroundColor: stepBarColor(step) }}
+                                />
+                                <span className="truncate">{step.title}</span>
+                              </span>
+                              <div className="relative h-1.5 w-full overflow-hidden rounded-sm bg-[#D8D5CB]/65">
+                                <div
+                                  style={{
+                                    left: `${leftPct}%`,
+                                    width: `${widthPct}%`,
+                                    backgroundColor: stepBarColor(step),
+                                  }}
+                                  className="absolute top-0 bottom-0 rounded-sm"
+                                />
+                              </div>
+                              <span className="font-mono-tabular text-right text-[#575652]">
+                                {formatMs(step.durationMs)}
+                              </span>
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </button>
