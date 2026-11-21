@@ -55,6 +55,13 @@ export function apply(ctx, config) {
   } catch {
     // The explicit URL opt-in still works when storage is unavailable.
   }
+  if (!active && requestedTheme === null) {
+    try {
+      active = window.self !== window.top
+    } catch {
+      // Leave the theme unchanged if the frame context cannot be read.
+    }
+  }
   if (active) document.documentElement.dataset.dshDesktopTheme = 'bauhaus'
 })()`,
     }, {
