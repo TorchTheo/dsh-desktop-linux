@@ -76,6 +76,9 @@ pub fn run() {
             commands::create_session,
             commands::send_query,
             commands::rewind_session,
+            commands::interrupt_and_send,
+            commands::list_session_jobs,
+            commands::kill_session_job,
             commands::abort_session,
             commands::list_models,
             commands::set_session_model,
@@ -180,6 +183,7 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
                 .unwrap_or_default();
                 app.emit("dsh://session-telemetry", event)
             }
+            BackendEvent::SessionJobs(event) => app.emit("dsh://session-jobs", event),
             BackendEvent::SessionEvent(event) => {
                 if let UiSessionEvent::TitleUpdated { session_id, title } = &event {
                     state.update_session(session_id, |session| session.title.clone_from(title));

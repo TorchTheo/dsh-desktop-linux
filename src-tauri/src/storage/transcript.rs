@@ -7,7 +7,7 @@ use std::{
 use serde_json::Value;
 
 use crate::{
-    domain::{SessionTelemetry, UiSessionDetail},
+    domain::{assistant_usage, SessionTelemetry, UiSessionDetail},
     protocol::sdk_adapter::decode_message,
 };
 
@@ -59,7 +59,9 @@ fn cached_telemetry(cache_path: &Path) -> (SessionTelemetry, bool) {
             .unwrap_or_default(),
         ..SessionTelemetry::default()
     };
+    let cached_surface = telemetry.surface_tokens;
     telemetry.add_usage(totals);
+    telemetry.surface_tokens = cached_surface;
     (telemetry, totals.is_object())
 }
 
@@ -85,6 +87,9 @@ pub fn load_session_transcript(
         telemetry,
     };
 
+    let cached_surface = detail.telemetry.surface_tokens;
+    let has_cached_context = detail.telemetry.context_window.is_some();
+    let mut transcript_usage = SessionTelemetry::default();
     for (line_index, line) in lines.enumerate() {
         let line = line.map_err(read_error)?;
         let Ok(event) = serde_json::from_slice::<Value>(&line) else {
@@ -98,8 +103,15 @@ pub fn load_session_transcript(
                 Some("user")
             }
             Some("assistant/message") => {
-                if !has_cached_usage {
-                    detail.telemetry.add_usage(&data["usage"]);
+                if let Some(usage) = assistant_usage(data) {
+                    if !has_cached_usage {
+                        detail.telemetry.add_usage(usage);
+                        detail.telemetry.surface_tokens =
+                            cached_surface.or(detail.telemetry.surface_tokens);
+                    } else if cached_surface.is_none() {
+                        transcript_usage.add_usage(usage);
+                        detail.telemetry.surface_tokens = transcript_usage.surface_tokens;
+                    }
                 }
                 Some("assistant")
             }
@@ -116,6 +128,12 @@ pub fn load_session_transcript(
                 None
             }
             Some("request/context") => {
+                if let Some(window) = data["contextWindow"]
+                    .as_u64()
+                    .filter(|_| !has_cached_context)
+                {
+                    detail.telemetry.context_window = Some(window);
+                }
                 detail.provider = data["provider"].as_str().map(str::to_owned);
                 detail.model = data["model"].as_str().map(str::to_owned);
                 None
@@ -140,6 +158,35 @@ mod tests {
 
     use super::*;
     use crate::{domain::UiContentBlock, storage::tests::TestHome};
+
+    #[test]
+    fn derives_context_and_cache_usage_from_assistant_events() {
+        let home = TestHome::new();
+        home.write_log(
+            "f6b387a3",
+            r#"{"type":"request/context","data":{"contextWindow":300000}}
+{"type":"assistant/message","data":{"message":{"usage":{"inputTokens":1702,"outputTokens":290,"totalTokens":110792,"cacheReadTokens":108800}}}}"#,
+        );
+        let telemetry = load_session_transcript(&home.0, "f6b387a3")
+            .unwrap()
+            .telemetry;
+        assert_eq!(telemetry.uncached_input_tokens, 1702);
+        assert_eq!(telemetry.cache_read_tokens, 108800);
+        assert_eq!(telemetry.surface_tokens, Some(110502));
+        assert_eq!(telemetry.context_window, Some(300000));
+
+        home.write(
+            "storages/session_projcache/sessions/f6b387a3.json",
+            br#"{"record":{"rows":{"tokenUsage":{"val":{"totals":{"uncachedInputTokens":1702,"cacheReadTokens":108800}}}}}}"#,
+        );
+        let telemetry = load_session_transcript(&home.0, "f6b387a3")
+            .unwrap()
+            .telemetry;
+        assert_eq!(telemetry.uncached_input_tokens, 1702);
+        assert_eq!(telemetry.cache_read_tokens, 108800);
+        assert_eq!(telemetry.surface_tokens, Some(110502));
+        assert_eq!(telemetry.context_window, Some(300000));
+    }
 
     #[test]
     fn prefers_projcache_usage_and_falls_back_to_assistant_usage() {

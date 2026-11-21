@@ -89,6 +89,10 @@ pub struct BridgeCapabilities {
     pub agent_presets: bool,
     #[serde(default)]
     pub session_actions: bool,
+    #[serde(default)]
+    pub interrupt_and_send: bool,
+    #[serde(default)]
+    pub session_jobs: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -285,6 +289,68 @@ pub struct SessionTelemetry {
     pub approval_policy: Option<String>,
     pub turn_count: u64,
     pub snapshot_count: usize,
+}
+
+impl SessionTelemetry {
+    pub(crate) fn add_usage(&mut self, usage: &serde_json::Value) {
+        let tokens = |snake: &str, camel: &str| {
+            usage[snake]
+                .as_u64()
+                .or_else(|| usage[camel].as_u64())
+                .unwrap_or_default()
+        };
+        let uncached = usage["uncachedInputTokens"]
+            .as_u64()
+            .or_else(|| usage["inputTokens"].as_u64())
+            .or_else(|| usage["input_tokens"].as_u64())
+            .unwrap_or_default();
+        let cache_read = tokens("cache_read_input_tokens", "cacheReadTokens");
+        let cache_write = tokens("cache_creation_input_tokens", "cacheWriteTokens");
+        let output = tokens("output_tokens", "outputTokens");
+
+        self.uncached_input_tokens = self.uncached_input_tokens.saturating_add(uncached);
+        self.cache_read_tokens = self.cache_read_tokens.saturating_add(cache_read);
+        self.cache_write_tokens = self.cache_write_tokens.saturating_add(cache_write);
+        self.output_tokens = self.output_tokens.saturating_add(output);
+
+        let surface = uncached
+            .saturating_add(cache_read)
+            .saturating_add(cache_write);
+        let surface = if surface == 0 {
+            usage["totalTokens"]
+                .as_u64()
+                .unwrap_or_default()
+                .saturating_sub(output)
+        } else {
+            surface
+        };
+        if surface > 0 {
+            self.surface_tokens = Some(surface);
+        }
+    }
+}
+
+pub(crate) fn assistant_usage(data: &serde_json::Value) -> Option<&serde_json::Value> {
+    [&data["usage"], &data["message"]["usage"]]
+        .into_iter()
+        .find(|usage| usage.is_object())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackgroundJobInfo {
+    pub job_id: String,
+    pub kind: String,
+    pub label: String,
+    pub status: String,
+    pub started_at: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionJobsEvent {
+    pub session_id: String,
+    pub jobs: Vec<BackgroundJobInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

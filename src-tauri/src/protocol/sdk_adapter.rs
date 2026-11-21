@@ -25,12 +25,13 @@ use uuid::Uuid;
 use crate::{
     config::AppConfig,
     domain::{
-        AgentPresetCatalog, ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities,
-        ClientPluginModule, HostRuntimeInfo, ImageAttachment, PluginBundleInfo, ProviderModels,
-        ProxiedHttpResponse, SessionModelSelection, SessionPermission, SessionPresetResult,
-        SessionRunStatus, SessionTelemetry, SessionTelemetryEvent, StreamDeltaEvent, SubagentEvent,
-        UiContentBlock, UiMessage, UiSessionEvent, UserQuestionCancelledEvent,
-        UserQuestionRequestEvent, WorkerStatus,
+        assistant_usage, AgentPresetCatalog, ApprovalOutcome, ApprovalRequestEvent,
+        BackgroundJobInfo, BridgeCapabilities, ClientPluginModule, HostRuntimeInfo,
+        ImageAttachment, PluginBundleInfo, ProviderModels, ProxiedHttpResponse, SessionJobsEvent,
+        SessionModelSelection, SessionPermission, SessionPresetResult, SessionRunStatus,
+        SessionTelemetry, SessionTelemetryEvent, StreamDeltaEvent, SubagentEvent, UiContentBlock,
+        UiMessage, UiSessionEvent, UserQuestionCancelledEvent, UserQuestionRequestEvent,
+        WorkerStatus,
     },
 };
 
@@ -222,7 +223,8 @@ impl SdkAdapter {
     }
 
     pub async fn list_client_plugins(&self) -> Result<Vec<ClientPluginModule>, String> {
-        self.bridge_rpc("desktop/client-plugins/list", json!({})).await
+        self.bridge_rpc("desktop/client-plugins/list", json!({}))
+            .await
     }
 
     pub async fn proxy_host_http(
@@ -393,10 +395,19 @@ impl SdkAdapter {
 
     pub async fn send_query(
         &self,
+        interrupt: bool,
         session_id: &str,
         text: &str,
         images: Vec<ImageAttachment>,
     ) -> Result<Option<String>, String> {
+        if interrupt && !self.capabilities.interrupt_and_send {
+            return Err("The SDK bridge does not support interrupt-and-send".into());
+        }
+        let method = if interrupt {
+            "desktop/session/interrupt-and-send"
+        } else {
+            "session/query"
+        };
         let mut blocks = Vec::with_capacity(images.len() + 1);
         if !text.is_empty() || images.is_empty() {
             blocks.push(json!({"type": "text", "text": text}));
@@ -411,11 +422,42 @@ impl SdkAdapter {
         }
         let result = self
             .rpc(
-                "session/query",
+                method,
                 json!({"sessionId": session_id, "contentBlocks": blocks}),
             )
             .await?;
         Ok(result["messageId"].as_str().map(str::to_owned))
+    }
+
+    pub async fn list_session_jobs(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<BackgroundJobInfo>, String> {
+        if !self.capabilities.session_jobs {
+            return Err("The SDK bridge does not support session jobs".into());
+        }
+        self.bridge_rpc(
+            "desktop/session/jobs/list",
+            json!({"sessionId": session_id}),
+        )
+        .await
+    }
+
+    pub async fn kill_session_job(&self, session_id: &str, job_id: &str) -> Result<bool, String> {
+        if !self.capabilities.session_jobs {
+            return Err("The SDK bridge does not support session jobs".into());
+        }
+        #[derive(Deserialize)]
+        struct KillResult {
+            killed: bool,
+        }
+        let result: KillResult = self
+            .bridge_rpc(
+                "desktop/session/jobs/kill",
+                json!({"sessionId": session_id, "jobId": job_id}),
+            )
+            .await?;
+        Ok(result.killed)
     }
 
     pub async fn resume_session(&self, session_id: &str) -> Result<(), String> {
@@ -670,7 +712,7 @@ async fn dispatch_messages(
     events: mpsc::UnboundedSender<BackendEvent>,
     stopping: Arc<AtomicBool>,
 ) {
-    let mut telemetry = HashMap::new();
+    let mut session_events = SessionEventState::default();
     while let Some(message) = incoming.recv().await {
         match message {
             IncomingMessage::Request { id, method, params } => {
@@ -699,7 +741,7 @@ async fn dispatch_messages(
                 .await;
             }
             IncomingMessage::Notification { method, params } => {
-                dispatch_notification(&events, &pending, &mut telemetry, &method, params);
+                dispatch_notification(&events, &pending, &mut session_events, &method, params);
             }
         }
     }
@@ -746,10 +788,16 @@ fn project_server_request(
     }
 }
 
+#[derive(Default)]
+struct SessionEventState {
+    telemetry: HashMap<String, SessionTelemetry>,
+    jobs: HashMap<String, Vec<BackgroundJobInfo>>,
+}
+
 fn dispatch_notification(
     events: &mpsc::UnboundedSender<BackendEvent>,
     pending: &ServerRequests,
-    telemetry: &mut HashMap<String, SessionTelemetry>,
+    state: &mut SessionEventState,
     method: &str,
     params: Value,
 ) {
@@ -763,11 +811,14 @@ fn dispatch_notification(
         "session.event" => {
             if let Some(session_id) = params["sessionId"].as_str() {
                 let event = &params["event"];
-                if let Some(telemetry) = update_telemetry(telemetry, session_id, event) {
+                if let Some(telemetry) = update_telemetry(&mut state.telemetry, session_id, event) {
                     let _ = events.send(BackendEvent::SessionTelemetry(SessionTelemetryEvent {
                         session_id: session_id.into(),
                         telemetry: telemetry.clone(),
                     }));
+                }
+                if let Some(event) = update_jobs(&mut state.jobs, session_id, event) {
+                    let _ = events.send(BackendEvent::SessionJobs(event));
                 }
                 for event in project_session_event(session_id, event) {
                     let _ = events.send(BackendEvent::SessionEvent(event));
@@ -822,6 +873,46 @@ fn dispatch_notification(
     let _ = events.send(event);
 }
 
+fn update_jobs(
+    sessions: &mut HashMap<String, Vec<BackgroundJobInfo>>,
+    session_id: &str,
+    event: &Value,
+) -> Option<SessionJobsEvent> {
+    let data = &event["data"];
+    let job_id = data["jobId"].as_str()?;
+    let jobs = match event["type"].as_str()? {
+        "job/registered" => {
+            let job = BackgroundJobInfo {
+                job_id: job_id.into(),
+                kind: data["kind"].as_str()?.into(),
+                label: data["label"].as_str()?.into(),
+                status: "running".into(),
+                started_at: data["startedAt"].as_u64(),
+            };
+            let jobs = sessions.entry(session_id.into()).or_default();
+            if let Some(existing) = jobs.iter_mut().find(|existing| existing.job_id == job_id) {
+                *existing = job;
+            } else {
+                jobs.push(job);
+            }
+            jobs.clone()
+        }
+        "job/settled" => {
+            let mut jobs = sessions.remove(session_id).unwrap_or_default();
+            jobs.retain(|job| job.job_id != job_id);
+            if !jobs.is_empty() {
+                sessions.insert(session_id.into(), jobs.clone());
+            }
+            jobs
+        }
+        _ => return None,
+    };
+    Some(SessionJobsEvent {
+        session_id: session_id.into(),
+        jobs,
+    })
+}
+
 fn update_telemetry<'a>(
     sessions: &'a mut HashMap<String, SessionTelemetry>,
     session_id: &str,
@@ -829,8 +920,9 @@ fn update_telemetry<'a>(
 ) -> Option<&'a SessionTelemetry> {
     let data = &event["data"];
     let kind = event["type"].as_str()?;
+    let usage = assistant_usage(data);
     match kind {
-        "assistant/message" if data["usage"].is_object() => {}
+        "assistant/message" if usage.is_some() => {}
         "request/context" if data["contextWindow"].is_u64() => {}
         "sandbox/mode" if data.is_string() || data["mode"].is_string() => {}
         "approval/policy" if data.is_string() || data["policy"].is_string() => {}
@@ -839,7 +931,7 @@ fn update_telemetry<'a>(
     }
     let telemetry = sessions.entry(session_id.into()).or_default();
     match kind {
-        "assistant/message" => telemetry.add_usage(&data["usage"]),
+        "assistant/message" => telemetry.add_usage(usage?),
         "request/context" => telemetry.context_window = data["contextWindow"].as_u64(),
         "sandbox/mode" => {
             telemetry.sandbox_mode = data
@@ -1068,10 +1160,44 @@ mod tests {
     }
 
     #[test]
+    fn session_job_events_keep_other_jobs_and_sessions_active() {
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        let pending = ServerRequests::default();
+        let mut state = SessionEventState::default();
+        let mut notify = |session_id: &str, kind: &str, job_id: &str| {
+            dispatch_notification(
+                &sender,
+                &pending,
+                &mut state,
+                "session.event",
+                json!({"sessionId": session_id, "event": {"type": kind, "data": {
+                    "jobId": job_id, "kind": "bash", "label": "sleep", "startedAt": 42
+                }}}),
+            );
+            let BackendEvent::SessionJobs(event) = receiver.try_recv().unwrap() else {
+                panic!("expected a session jobs event");
+            };
+            assert_eq!(event.session_id, session_id);
+            event.jobs
+        };
+
+        let jobs = notify("first", "job/registered", "a");
+        assert_eq!(jobs[0].status, "running");
+        assert_eq!(jobs[0].started_at, Some(42));
+        assert_eq!(notify("first", "job/registered", "b").len(), 2);
+        assert_eq!(notify("second", "job/registered", "c").len(), 1);
+        let remaining = notify("first", "job/settled", "a");
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].job_id, "b");
+        assert!(notify("first", "job/settled", "b").is_empty());
+        assert_eq!(state.jobs["second"][0].job_id, "c");
+    }
+
+    #[test]
     fn session_notifications_emit_isolated_telemetry() {
         let (sender, mut receiver) = mpsc::unbounded_channel();
         let pending = ServerRequests::default();
-        let mut sessions = HashMap::new();
+        let mut sessions = SessionEventState::default();
         let mut send = |session_id: &str, kind: &str, data: Value| {
             dispatch_notification(
                 &sender,
@@ -1119,6 +1245,7 @@ mod tests {
                 cache_write_tokens: 3,
                 output_tokens: 9,
                 context_window: Some(100),
+                surface_tokens: Some(6),
                 sandbox_mode: Some("workspace-write".into()),
                 approval_policy: Some("on-request".into()),
                 turn_count: 3,

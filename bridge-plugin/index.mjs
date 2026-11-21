@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises'
 import { realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -340,6 +341,8 @@ html[data-dsh-desktop-theme='bauhaus'],
           hostHttpProxy: true,
           agentPresets: true,
           sessionActions: true,
+          interruptAndSend: true,
+          sessionJobs: true,
         }
       case 'desktop/host/info':
         return hostInfo(ctx)
@@ -454,6 +457,38 @@ html[data-dsh-desktop-theme='bauhaus'],
         if (archived !== undefined) result.archived = workspace.archivedSessionIds.includes(sessionId)
         if (pinned !== undefined || archived === true) result.pinned = workspace.pinnedSessionIds.includes(sessionId)
         return result
+      }
+      case 'desktop/session/interrupt-and-send': {
+        const sessionId = requiredString(params?.sessionId, 'sessionId')
+        const { contentBlocks } = params
+        if (!Array.isArray(contentBlocks)) throw new TypeError('contentBlocks requires an array')
+        const agent = ctx.agents.get(sessionId)
+        if (agent?.status === 'running') {
+          agent.cancel({ kind: 'user' })
+          const deadline = performance.now() + 3000
+          while (agent.status === 'running' && performance.now() < deadline) {
+            await delay(25)
+          }
+          if (agent.status === 'running') throw new Error('Timed out waiting for the current turn to stop')
+        }
+        const { messageId } = await server.handleRequest('session/query', { sessionId, contentBlocks })
+        return { messageId }
+      }
+      case 'desktop/session/jobs/list': {
+        const sessionId = requiredString(params?.sessionId, 'sessionId')
+        return requireService(ctx, 'jobs').list(sessionId)
+          .filter(job => job.owner === sessionId && !['completed', 'killed', 'failed'].includes(job.status))
+          .map(({ id, kind, label, status, startedAt }) => ({
+            jobId: id, kind, label, status, startedAt: startedAt ?? null,
+          }))
+      }
+      case 'desktop/session/jobs/kill': {
+        const sessionId = requiredString(params?.sessionId, 'sessionId')
+        const jobId = requiredString(params?.jobId, 'jobId')
+        const jobs = requireService(ctx, 'jobs')
+        const running = jobs.list(sessionId).some(job =>
+          job.id === jobId && job.owner === sessionId && job.status === 'running')
+        return { killed: running && jobs.kill(jobId, sessionId) === 'requested' }
       }
       case 'desktop/session/abort': {
         const agent = ctx.agents.get(requiredString(params?.sessionId, 'sessionId'))

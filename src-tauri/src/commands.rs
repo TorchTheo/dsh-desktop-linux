@@ -9,10 +9,11 @@ use tokio::sync::oneshot;
 use crate::{
     config::AppConfig,
     domain::{
-        AgentPresetCatalog, AppStateSnapshot, ApprovalOutcome, ClientPluginModule, HostRuntimeInfo,
-        ImageAttachment, PluginBundleInfo, ProviderModels, ProxiedHttpResponse, RewindResult,
-        SessionModelSelection, SessionPermission, SessionPresetResult, SessionRunStatus,
-        SessionSummary, UiSessionDetail, WorkerStatus, WorkspaceSummary,
+        AgentPresetCatalog, AppStateSnapshot, ApprovalOutcome, BackgroundJobInfo,
+        ClientPluginModule, HostRuntimeInfo, ImageAttachment, PluginBundleInfo, ProviderModels,
+        ProxiedHttpResponse, RewindResult, SessionModelSelection, SessionPermission,
+        SessionPresetResult, SessionRunStatus, SessionSummary, UiSessionDetail, WorkerStatus,
+        WorkspaceSummary,
     },
     protocol::sdk_adapter::SessionMeta,
     state::{now_millis, AppState},
@@ -303,6 +304,28 @@ pub(crate) async fn send_query(
     images: Option<Vec<ImageAttachment>>,
     client_message_id: Option<String>,
 ) -> Result<Option<String>, String> {
+    submit_query(&state, session_id, text, images, client_message_id, false).await
+}
+
+#[tauri::command]
+pub(crate) async fn interrupt_and_send(
+    state: State<'_, AppState>,
+    session_id: String,
+    text: String,
+    images: Option<Vec<ImageAttachment>>,
+    client_message_id: Option<String>,
+) -> Result<Option<String>, String> {
+    submit_query(&state, session_id, text, images, client_message_id, true).await
+}
+
+async fn submit_query(
+    state: &AppState,
+    session_id: String,
+    text: String,
+    images: Option<Vec<ImageAttachment>>,
+    client_message_id: Option<String>,
+    interrupt: bool,
+) -> Result<Option<String>, String> {
     let adapter = state.sdk().await?;
     state.ensure_session_resumed(&adapter, &session_id).await?;
     if let Some(message_id) = client_message_id {
@@ -319,7 +342,7 @@ pub(crate) async fn send_query(
         .map_err(|error| error.to_string())?;
     }
     adapter
-        .send_query(&session_id, &text, images.unwrap_or_default())
+        .send_query(interrupt, &session_id, &text, images.unwrap_or_default())
         .await
 }
 
@@ -331,9 +354,10 @@ pub(crate) async fn rewind_session(
     restore_workspace: bool,
 ) -> Result<RewindResult, String> {
     let cwd = state.session_summary(&session_id)?.cwd;
-    state.sdk().await?;
+    let adapter = state.sdk().await?;
     let (workspace_restored, workspace_note) = if restore_workspace {
         let cwd = cwd.clone();
+        let session_id = session_id.clone();
         tokio::task::spawn_blocking(move || {
             match snapshot::find_snapshot(&session_id, &target_message_id) {
                 Ok(Some(tree_oid)) => {
@@ -352,11 +376,47 @@ pub(crate) async fn rewind_session(
         (false, "未请求回滚工作区".into())
     };
     let session = state.create_session(&cwd).await?;
+    let _update = state.session_meta_update.lock().await;
+    let _ = adapter
+        .update_session_meta(
+            &session_id,
+            SessionMeta {
+                title: None,
+                pinned: None,
+                archived: Some(true),
+            },
+        )
+        .await;
+    state.update_session(&session_id, |session| {
+        session.archived = true;
+        session.pinned = false;
+    });
     Ok(RewindResult {
         session,
         workspace_restored,
         workspace_note,
     })
+}
+
+#[tauri::command]
+pub(crate) async fn list_session_jobs(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<Vec<BackgroundJobInfo>, String> {
+    state.sdk().await?.list_session_jobs(&session_id).await
+}
+
+#[tauri::command]
+pub(crate) async fn kill_session_job(
+    state: State<'_, AppState>,
+    session_id: String,
+    job_id: String,
+) -> Result<bool, String> {
+    state
+        .sdk()
+        .await?
+        .kill_session_job(&session_id, &job_id)
+        .await
 }
 
 #[tauri::command]
