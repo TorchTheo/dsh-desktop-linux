@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   AlertCircle,
+  Bot,
   ChevronDown,
   ChevronRight,
   FolderGit2,
   Loader2,
   TerminalSquare,
+  User,
   Wrench,
 } from 'lucide-react'
 import { openExternalUrl } from '../api/tauri'
@@ -271,6 +273,7 @@ interface TurnGroup {
   id: string
   kind: 'user' | 'agent' | 'system'
   timestamp: number
+  userText?: string
   userMessage?: UiMessage
   systemMessage?: UiMessage
   processBlocks: UiContentBlock[]
@@ -291,10 +294,16 @@ function groupMessagesIntoTurns(messages: UiMessage[]): TurnGroup[] {
   for (const msg of messages) {
     if (msg.role === 'user') {
       flushAgent()
+      const userText = msg.blocks
+        .filter((b) => b.type === 'text')
+        .map((b) => b.text)
+        .join('\n')
+        .trim()
       groups.push({
         id: msg.id,
         kind: 'user',
         timestamp: msg.timestamp,
+        userText: userText || '（图片消息）',
         userMessage: msg,
         processBlocks: [],
         finalBlocks: [],
@@ -369,10 +378,20 @@ export function ChatStream() {
   const providers = useAppStore((s) => s.providers)
   const sendQuery = useAppStore((s) => s.sendQuery)
 
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const turnRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : []
   const turnGroups = useMemo(() => groupMessagesIntoTurns(messages), [messages])
+  const userTurns = useMemo(
+    () => turnGroups.filter((g) => g.kind === 'user'),
+    [turnGroups],
+  )
+  const [activeTurnId, setActiveTurnId] = useState<string | null>(null)
+  const [hoveredTurnId, setHoveredTurnId] = useState<string | null>(null)
+
   const streaming = activeSessionId ? streamingBySession[activeSessionId] : undefined
   const isLoadingHistory = Boolean(activeSessionId && loadingHistoryId === activeSessionId)
   const sessionApprovals = approvals.filter(
@@ -393,6 +412,30 @@ export function ChatStream() {
           ? '后端异常'
           : '未连接'
 
+  const updateActiveTurn = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container || userTurns.length === 0) return
+    const containerTop = container.getBoundingClientRect().top
+    let current = userTurns[0].id
+    for (const turn of userTurns) {
+      const el = turnRefs.current[turn.id]
+      if (!el) continue
+      const offset = el.getBoundingClientRect().top - containerTop
+      if (offset <= 120) {
+        current = turn.id
+      }
+    }
+    setActiveTurnId(current)
+  }, [userTurns])
+
+  useEffect(() => {
+    if (userTurns.length > 0) {
+      setActiveTurnId(userTurns[userTurns.length - 1].id)
+    } else {
+      setActiveTurnId(null)
+    }
+  }, [activeSessionId, userTurns.length])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [
@@ -402,6 +445,11 @@ export function ChatStream() {
     sessionApprovals.length,
     sessionQuestions.length,
   ])
+
+  const jumpToTurn = (id: string) => {
+    setActiveTurnId(id)
+    turnRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   if (isLoadingHistory && messages.length === 0) {
     return (
@@ -472,123 +520,195 @@ export function ChatStream() {
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto px-6 py-7">
-        <div className="mx-auto max-w-[820px] space-y-6">
-          {turnGroups.map((group) => {
-            if (group.kind === 'user' && group.userMessage) {
-              return (
-                <div key={group.id} className="flex justify-end">
-                  <article className="max-w-[78%] rounded-lg border border-[#D8D5CB] border-r-[3px] border-r-[#D13B27] bg-[#FAF9F5] px-4 py-3">
-                    <div className="mb-1.5 flex items-center justify-end gap-2 text-[11px] text-[#8A8880]">
-                      <span className="font-mono-tabular">{formatClock(group.timestamp)}</span>
-                      <span>·</span>
-                      <span className="font-semibold text-[#D13B27]">用户</span>
-                      <span className="h-1.5 w-1.5 bg-[#D13B27]" />
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        <div
+          ref={scrollContainerRef}
+          onScroll={updateActiveTurn}
+          className="flex-1 overflow-y-auto px-6 py-7 pr-12"
+        >
+          <div className="mx-auto max-w-[820px] space-y-6">
+            {turnGroups.map((group) => {
+              if (group.kind === 'user' && group.userMessage) {
+                return (
+                  <div
+                    key={group.id}
+                    ref={(el) => {
+                      turnRefs.current[group.id] = el
+                    }}
+                    className="flex scroll-mt-6 items-start justify-end gap-2.5"
+                  >
+                    <article className="max-w-[78%] rounded-lg border border-[#D8D5CB] border-r-[3px] border-r-[#D13B27] bg-[#FAF9F5] px-4 py-3">
+                      <div className="text-[14.5px] leading-relaxed text-[#141413]">
+                        {group.userMessage.blocks.map((block, idx) => renderBlock(block, idx))}
+                      </div>
+                      <div className="mt-1.5 text-right font-mono-tabular text-[10px] text-[#8A8880]">
+                        {formatClock(group.timestamp)}
+                      </div>
+                    </article>
+                    <div
+                      className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#D13B27]/40 bg-[#FAF9F5] text-[#D13B27]"
+                      title="用户消息"
+                    >
+                      <User className="h-3.5 w-3.5 stroke-[2]" />
                     </div>
-                    <div className="text-[14.5px] leading-relaxed text-[#141413]">
-                      {group.userMessage.blocks.map((block, idx) => renderBlock(block, idx))}
+                  </div>
+                )
+              }
+
+              if (group.kind === 'system' && group.systemMessage) {
+                return (
+                  <div
+                    key={group.id}
+                    className="flex items-start gap-2.5 rounded border border-[#D13B27]/50 bg-[#D13B27]/6 px-4 py-3 text-xs text-[#8f2214]"
+                  >
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#D13B27]" />
+                    <div className="min-w-0 flex-1">
+                      {group.systemMessage.blocks.map((block, idx) => renderBlock(block, idx))}
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+                <div key={group.id} className="flex items-start justify-start gap-2.5">
+                  <div
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#141413] bg-[#141413] text-[#FAF9F5]"
+                    title="助手回复"
+                  >
+                    <Bot className="h-3.5 w-3.5 stroke-[1.9]" />
+                  </div>
+                  <article className="min-w-0 flex-1 max-w-[90%]">
+                    {group.processBlocks.length > 0 && (
+                      <ProcessGroupDisclosure blocks={group.processBlocks} />
+                    )}
+
+                    {group.finalBlocks.length > 0 && (
+                      <div className="space-y-1.5">
+                        {group.finalBlocks.map((block, idx) => renderBlock(block, idx))}
+                      </div>
+                    )}
+
+                    <div className="mt-1 font-mono-tabular text-[10px] text-[#8A8880]">
+                      {formatClock(group.timestamp)}
                     </div>
                   </article>
                 </div>
               )
-            }
+            })}
 
-            if (group.kind === 'system' && group.systemMessage) {
-              return (
+            {(streaming?.thinking || streaming?.text) && (
+              <div className="flex items-start justify-start gap-2.5">
                 <div
-                  key={group.id}
-                  className="flex items-start gap-2.5 rounded border border-[#D13B27]/50 bg-[#D13B27]/6 px-4 py-3 text-xs text-[#8f2214]"
+                  className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#1E4D9B] bg-[#1E4D9B] text-[#FAF9F5]"
+                  title="正在生成"
                 >
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#D13B27]" />
-                  <div className="min-w-0 flex-1">
-                    {group.systemMessage.blocks.map((block, idx) => renderBlock(block, idx))}
-                  </div>
+                  <Bot className="h-3.5 w-3.5 animate-pulse stroke-[1.9]" />
                 </div>
-              )
-            }
-
-            return (
-              <div key={group.id} className="flex justify-start">
-                <article className="w-full max-w-[92%] border-l-[2px] border-[#141413] pl-4">
-                  <div className="mb-2 flex items-center gap-2 text-[11px] text-[#8A8880]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#141413]" />
-                    <span className="font-semibold text-[#141413]">助手</span>
-                    <span>·</span>
-                    <span className="font-mono-tabular">{formatClock(group.timestamp)}</span>
-                  </div>
-
-                  {group.processBlocks.length > 0 && (
-                    <ProcessGroupDisclosure blocks={group.processBlocks} />
+                <article className="min-w-0 flex-1 max-w-[90%]">
+                  {streaming.thinking && (
+                    <ThinkingBlock text={streaming.thinking} defaultOpen streaming />
                   )}
-
-                  {group.finalBlocks.length > 0 && (
-                    <div className="space-y-1.5">
-                      {group.finalBlocks.map((block, idx) => renderBlock(block, idx))}
+                  {streaming.text && (
+                    <div className="markdown-body text-[14.5px]">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                        {streaming.text}
+                      </ReactMarkdown>
+                      <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-[#D13B27] align-middle" />
                     </div>
                   )}
                 </article>
               </div>
-            )
-          })}
+            )}
 
-          {(streaming?.thinking || streaming?.text) && (
-            <div className="flex justify-start">
-              <article className="w-full max-w-[92%] border-l-[2px] border-[#1E4D9B] pl-4">
-                <div className="mb-2 flex items-center gap-2 text-[11px] text-[#8A8880]">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#1E4D9B]" />
-                  <span className="font-semibold text-[#1E4D9B]">助手（生成中）</span>
-                </div>
-                {streaming.thinking && (
-                  <ThinkingBlock text={streaming.thinking} defaultOpen streaming />
-                )}
-                {streaming.text && (
-                  <div className="markdown-body text-[14.5px]">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                      {streaming.text}
-                    </ReactMarkdown>
-                    <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-[#D13B27] align-middle" />
+            {subagents.length > 0 && (
+              <div className="flex flex-wrap gap-2 pl-9">
+                {subagents.map((sa) => (
+                  <div
+                    key={sa.childSessionId}
+                    className="inline-flex items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2.5 py-1 text-[11px] text-[#575652]"
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rotate-45 ${
+                        sa.kind === 'started' ? 'bg-[#1E4D9B] animate-pulse' : 'bg-[#246A4D]'
+                      }`}
+                    />
+                    子代理 {sa.childSessionId.slice(0, 8)} ·{' '}
+                    {sa.kind === 'started' ? '运行中' : sa.status === 'ok' ? '已完成' : '异常'}
                   </div>
-                )}
-              </article>
-            </div>
-          )}
+                ))}
+              </div>
+            )}
 
-          {subagents.length > 0 && (
-            <div className="flex flex-wrap gap-2 pl-4">
-              {subagents.map((sa) => (
-                <div
-                  key={sa.childSessionId}
-                  className="inline-flex items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2.5 py-1 text-[11px] text-[#575652]"
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rotate-45 ${
-                      sa.kind === 'started' ? 'bg-[#1E4D9B] animate-pulse' : 'bg-[#246A4D]'
-                    }`}
-                  />
-                  子代理 {sa.childSessionId.slice(0, 8)} ·{' '}
-                  {sa.kind === 'started' ? '运行中' : sa.status === 'ok' ? '已完成' : '异常'}
-                </div>
-              ))}
-            </div>
-          )}
+            {sessionApprovals.map((req) => (
+              <ApprovalCard key={req.requestId} request={req} />
+            ))}
 
-          {sessionApprovals.map((req) => (
-            <ApprovalCard key={req.requestId} request={req} />
-          ))}
+            {sessionQuestions.map((req) => (
+              <QuestionCard key={req.requestId} request={req} />
+            ))}
 
-          {sessionQuestions.map((req) => (
-            <QuestionCard key={req.requestId} request={req} />
-          ))}
+            {activeSession?.status === 'running' && !streaming?.text && !streaming?.thinking && (
+              <div className="flex items-center gap-2 pl-9 text-xs text-[#575652]">
+                <span className="h-2 w-2 animate-pulse bg-[#D13B27]" />
+                正在执行...
+              </div>
+            )}
 
-          {activeSession?.status === 'running' && !streaming?.text && !streaming?.thinking && (
-            <div className="flex items-center gap-2 pl-4 text-xs text-[#575652]">
-              <span className="h-2 w-2 animate-pulse bg-[#D13B27]" />
-              助手正在执行...
-            </div>
-          )}
-
-          <div ref={bottomRef} />
+            <div ref={bottomRef} />
+          </div>
         </div>
+
+        {/* 右侧悬浮对话跳转轨道（断开短竖线 + 悬停预览用户输入） */}
+        {userTurns.length > 0 && (
+          <nav
+            aria-label="对话跳转轨道"
+            className="pointer-events-auto absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-1.5 py-2"
+          >
+            {userTurns.map((turn, idx) => {
+              const isActive = turn.id === activeTurnId
+              const isHovered = turn.id === hoveredTurnId
+              return (
+                <div
+                  key={turn.id}
+                  className="relative flex items-center"
+                  onMouseEnter={() => setHoveredTurnId(turn.id)}
+                  onMouseLeave={() => setHoveredTurnId((prev) => (prev === turn.id ? null : prev))}
+                >
+                  {isHovered && (
+                    <div className="pointer-events-none absolute right-6 z-30 w-64 rounded-md border border-[#C2BEB2] bg-[#FAF9F5] px-3 py-2 text-left shadow-sm">
+                      <div className="mb-1 flex items-center justify-between font-mono-tabular text-[10px] text-[#8A8880]">
+                        <span className="font-semibold text-[#D13B27]">
+                          第 {String(idx + 1).padStart(2, '0')} 条
+                        </span>
+                        <span>{formatClock(turn.timestamp)}</span>
+                      </div>
+                      <p className="line-clamp-3 text-xs leading-relaxed text-[#141413]">
+                        {turn.userText}
+                      </p>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => jumpToTurn(turn.id)}
+                    aria-label={`跳转到第 ${idx + 1} 条用户输入`}
+                    className="flex items-center justify-center px-1.5 py-0.5"
+                  >
+                    <span
+                      className={`block rounded-full transition-all ${
+                        isActive
+                          ? 'h-5 w-[3.5px] bg-[#D13B27]'
+                          : isHovered
+                            ? 'h-4 w-[3px] bg-[#141413]'
+                            : 'h-3.5 w-[2px] bg-[#C2BEB2]'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )
+            })}
+          </nav>
+        )}
       </div>
       <Composer />
     </>
