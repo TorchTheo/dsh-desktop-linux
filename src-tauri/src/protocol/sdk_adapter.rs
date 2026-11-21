@@ -719,6 +719,9 @@ async fn dispatch_messages(
                 let error = match project_server_request(&method, params) {
                     Ok((key, event)) => {
                         let callbacks = &mut *pending.lock().unwrap();
+                        if stopping.load(Ordering::Acquire) {
+                            continue;
+                        }
                         match callbacks.entry(key) {
                             std::collections::hash_map::Entry::Occupied(_) => {
                                 (-32602, "Duplicate requestId")
@@ -745,7 +748,8 @@ async fn dispatch_messages(
             }
         }
     }
-    pending.lock().unwrap().clear();
+    let mut callbacks = pending.lock().unwrap();
+    callbacks.clear();
     if !stopping.load(Ordering::Acquire) {
         let _ = events.send(BackendEvent::WorkerStatus(WorkerStatus::Error {
             message: "dsh SDK output stream closed".into(),

@@ -69,6 +69,10 @@ pub struct AppStateSnapshot {
     pub sessions: Vec<SessionSummary>,
     #[serde(default)]
     pub workspaces: Vec<WorkspaceSummary>,
+    #[serde(default)]
+    pub pending_approvals: Vec<ApprovalRequestEvent>,
+    #[serde(default)]
+    pub pending_questions: Vec<UserQuestionRequestEvent>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -525,6 +529,8 @@ mod tests {
         }))
         .unwrap();
         assert!(snapshot.workspaces.is_empty());
+        assert!(snapshot.pending_approvals.is_empty());
+        assert!(snapshot.pending_questions.is_empty());
         assert!(snapshot.host_info.is_none());
         assert_eq!(snapshot.bridge_capabilities, BridgeCapabilities::default());
         let session = &snapshot.sessions[0];

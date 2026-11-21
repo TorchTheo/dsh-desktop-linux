@@ -136,6 +136,12 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
         let result = match event {
             BackendEvent::WorkerStatus(status) => {
                 *state.worker_status.write().unwrap() = status.clone();
+                if matches!(
+                    status,
+                    WorkerStatus::Starting | WorkerStatus::Stopped | WorkerStatus::Error { .. }
+                ) {
+                    state.clear_pending_requests();
+                }
                 if matches!(status, WorkerStatus::Stopped | WorkerStatus::Error { .. }) {
                     let capabilities = BridgeCapabilities::default();
                     *state.bridge_capabilities.write().unwrap() = capabilities;
@@ -193,6 +199,12 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
                 app.emit("dsh://session-event", event)
             }
             BackendEvent::ApprovalRequest(event) => {
+                state
+                    .pending_requests
+                    .write()
+                    .unwrap()
+                    .approvals
+                    .push(event.clone());
                 notify::in_background(
                     &app,
                     "DSH 需要工具审批",
@@ -201,10 +213,22 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
                 app.emit("dsh://approval-request", event)
             }
             BackendEvent::UserQuestion(event) => {
+                state
+                    .pending_requests
+                    .write()
+                    .unwrap()
+                    .questions
+                    .push(event.clone());
                 notify::in_background(&app, "DSH 等待你的输入", None);
                 app.emit("dsh://user-question", event)
             }
             BackendEvent::UserQuestionCancelled(event) => {
+                state
+                    .pending_requests
+                    .write()
+                    .unwrap()
+                    .questions
+                    .retain(|request| request.request_id != event.request_id);
                 app.emit("dsh://user-question-cancelled", event)
             }
             BackendEvent::Subagent(event) => app.emit("dsh://subagent-update", event),

@@ -14,12 +14,18 @@ use uuid::Uuid;
 use crate::{
     config::AppConfig,
     domain::{
-        AppStateSnapshot, BridgeCapabilities, HostRuntimeInfo, SessionRunStatus, SessionSummary,
-        WorkerStatus, WorkspaceSummary,
+        AppStateSnapshot, ApprovalRequestEvent, BridgeCapabilities, HostRuntimeInfo,
+        SessionRunStatus, SessionSummary, UserQuestionRequestEvent, WorkerStatus, WorkspaceSummary,
     },
     protocol::{sdk_adapter::SdkAdapter, BackendEvent},
     storage,
 };
+
+#[derive(Default)]
+pub(crate) struct PendingRequests {
+    pub approvals: Vec<ApprovalRequestEvent>,
+    pub questions: Vec<UserQuestionRequestEvent>,
+}
 
 pub(crate) struct AppState {
     pub config: RwLock<AppConfig>,
@@ -30,6 +36,7 @@ pub(crate) struct AppState {
     pub workspaces: RwLock<Vec<WorkspaceSummary>>,
     pub active_worker_sessions: RwLock<HashSet<String>>,
     pub adapter: Mutex<Option<Arc<SdkAdapter>>>,
+    pub pending_requests: RwLock<PendingRequests>,
     pub event_tx: mpsc::UnboundedSender<BackendEvent>,
     pub session_meta_update: Mutex<()>,
     storage_refresh: BlockingMutex<()>,
@@ -56,6 +63,7 @@ impl AppState {
             workspaces: RwLock::new(workspaces),
             active_worker_sessions: RwLock::new(HashSet::new()),
             adapter: Mutex::new(None),
+            pending_requests: RwLock::new(PendingRequests::default()),
             event_tx,
             session_meta_update: Mutex::new(()),
             storage_refresh: BlockingMutex::new(()),
@@ -74,6 +82,7 @@ impl AppState {
         workspaces: &[WorkspaceSummary],
         sessions: &[SessionSummary],
     ) -> AppStateSnapshot {
+        let pending = self.pending_requests.read().unwrap();
         AppStateSnapshot {
             config: self.config.read().unwrap().clone(),
             worker_status: self.worker_status.read().unwrap().clone(),
@@ -81,6 +90,8 @@ impl AppState {
             host_info: self.host_info.read().unwrap().clone(),
             sessions: sessions.to_vec(),
             workspaces: workspaces.to_vec(),
+            pending_approvals: pending.approvals.clone(),
+            pending_questions: pending.questions.clone(),
         }
     }
 
@@ -222,11 +233,16 @@ impl AppState {
             .ok_or_else(|| "dsh SDK worker is not running".into())
     }
 
+    pub fn clear_pending_requests(&self) {
+        *self.pending_requests.write().unwrap() = PendingRequests::default();
+    }
+
     pub async fn shutdown(&self) {
         self.stopping.store(true, Ordering::Release);
         if let Some(adapter) = self.adapter.lock().await.take() {
             adapter.shutdown().await;
         }
+        self.clear_pending_requests();
     }
 
     pub fn update_session(&self, session_id: &str, update: impl FnOnce(&mut SessionSummary)) {
@@ -313,6 +329,39 @@ mod tests {
         );
 
         assert_eq!(merged, vec![saved, history, unsaved]);
+    }
+
+    #[test]
+    fn snapshot_restores_pending_requests_until_worker_reset() {
+        let home = TestHome::new();
+        let (event_tx, _) = mpsc::unbounded_channel();
+        let state = AppState::new_with_storage(AppConfig::default(), event_tx, &home.0);
+        let approval = ApprovalRequestEvent {
+            request_id: "approval".into(),
+            session_id: "session".into(),
+            tool_name: "test".into(),
+            call_id: None,
+            reason: None,
+        };
+        let question = UserQuestionRequestEvent {
+            request_id: "question".into(),
+            session_id: "session".into(),
+            questions: serde_json::json!([{"id": "choice"}]),
+        };
+        {
+            let mut pending = state.pending_requests.write().unwrap();
+            pending.approvals.push(approval.clone());
+            pending.questions.push(question.clone());
+        }
+
+        let snapshot = serde_json::to_value(state.snapshot()).unwrap();
+        assert_eq!(snapshot["pendingApprovals"], serde_json::json!([approval]));
+        assert_eq!(snapshot["pendingQuestions"], serde_json::json!([question]));
+
+        state.clear_pending_requests();
+        let snapshot = state.snapshot();
+        assert!(snapshot.pending_approvals.is_empty());
+        assert!(snapshot.pending_questions.is_empty());
     }
 
     #[test]

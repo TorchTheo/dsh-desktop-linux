@@ -109,8 +109,22 @@ function normalizeBundleSource(value) {
   return JSON.stringify(value)
 }
 
-// The SDK's stock create/resume path has no preset composition callback.
 class DesktopSdkServer extends HarnessSdkJsonRpcServer {
+  constructor(ctx, transport, options) {
+    // Register the SDK handlers ahead of Web remotes while keeping the SDK's
+    // ownership checks, reply validation, and listener disposers.
+    const sdkContext = ctx.extend({
+      on(event, listener, options) {
+        if (event === 'user-questions/request' || event === 'approval/request') {
+          return ctx.on(event, listener, { ...options, prepend: true })
+        }
+        return ctx.on(event, listener, options)
+      },
+    })
+    super(sdkContext, transport, options)
+  }
+
+  // The SDK's stock create/resume path has no preset composition callback.
   async createSession(sessionId, resume) {
     const live = resume ? this.ctx.agents.get(sessionId) : undefined
     const presets = this.ctx.get('agentPresets')

@@ -472,11 +472,18 @@ pub(crate) async fn respond_approval(
     request_id: String,
     outcome: ApprovalOutcome,
 ) -> Result<(), String> {
-    state
+    let result = state
         .sdk()
         .await?
         .respond_approval(&request_id, outcome)
-        .await
+        .await;
+    state
+        .pending_requests
+        .write()
+        .unwrap()
+        .approvals
+        .retain(|request| request.request_id != request_id);
+    result
 }
 
 #[tauri::command]
@@ -485,11 +492,18 @@ pub(crate) async fn respond_user_question(
     request_id: String,
     answer: Value,
 ) -> Result<(), String> {
-    state
+    let result = state
         .sdk()
         .await?
         .respond_user_question(&request_id, answer)
-        .await
+        .await;
+    state
+        .pending_requests
+        .write()
+        .unwrap()
+        .questions
+        .retain(|request| request.request_id != request_id);
+    result
 }
 
 #[tauri::command]
