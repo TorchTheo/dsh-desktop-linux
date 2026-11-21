@@ -42,6 +42,45 @@ export function apply(ctx, config) {
   })
   ctx.provide('sdkSessionActivation', { ready: true })
 
+  ctx.on('webserver/index-inject', table => {
+    table.push({
+      kind: 'script',
+      placement: 'head',
+      text: `(() => {
+  const requestedTheme = new URL(location.href).searchParams.get('desktopTheme')
+  let active = requestedTheme === 'bauhaus'
+  try {
+    if (active) sessionStorage.setItem('dshDesktopTheme', 'bauhaus')
+    else if (requestedTheme === null) active = sessionStorage.getItem('dshDesktopTheme') === 'bauhaus'
+  } catch {
+    // The explicit URL opt-in still works when storage is unavailable.
+  }
+  if (active) document.documentElement.dataset.dshDesktopTheme = 'bauhaus'
+})()`,
+    }, {
+      kind: 'style',
+      text: `
+html[data-dsh-desktop-theme='bauhaus'],
+:root[data-dsh-desktop-theme='bauhaus'] {
+  color-scheme: light;
+  --dsw-alias-bg-base: #F4F3EE;
+  --dsw-alias-bg-layer-1: #FAF9F5;
+  --dsw-alias-bg-layer-2: #ECEAE2;
+  --dsw-alias-label-primary: #141413;
+  --dsw-alias-label-secondary: #575652;
+  --dsw-alias-label-tertiary: #8A8880;
+  --dsw-alias-border-l2: #C2BEB2;
+  --dsw-alias-border-l3: #D8D5CB;
+  --dsw-alias-state-business-primary: #D13B27;
+  --dsw-alias-state-success-primary: #246A4D;
+  --dsw-alias-state-warning-primary: #C4881C;
+  --dsw-alias-state-info-primary: #1E4D9B;
+  --dsw-alias-interactive-bg-hover: #ECEAE2;
+  --dsw-radius-md: 6px;
+}`,
+    })
+  })
+
   const streamedBlocks = new WeakMap()
   ctx.on('agent/assistant-stream', ({ agent, frame }) => {
     if (frame.type === 'start') {
