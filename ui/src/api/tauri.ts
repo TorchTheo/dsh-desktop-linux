@@ -255,6 +255,14 @@ export async function pickDirectory(): Promise<string | null> {
   return invoke<string | null>('pick_directory')
 }
 
+export async function readLocalFileDataUrl(path: string): Promise<string> {
+  return invoke<string>('read_local_file_data_url', { path })
+}
+
+export async function openLocalFile(path: string): Promise<void> {
+  return invoke<void>('open_local_file', { path })
+}
+
 export async function openExternalUrl(url: string): Promise<void> {
   if (!isTauriRuntime()) {
     window.open(url, '_blank', 'noopener,noreferrer')

@@ -170,6 +170,7 @@ export type UiContentBlock =
   | { type: 'toolUse'; id: string; name: string; input: unknown }
   | { type: 'toolResult'; toolUseId: string; content: unknown; isError: boolean }
   | { type: 'image'; mimeType: string; dataUrl: string }
+  | { type: 'deliverable'; path: string; description?: string | null; mimeType?: string | null }
   | { type: 'unknown'; raw: unknown }
 
 export interface UiMessage {

@@ -22,6 +22,7 @@ import { useAppStore } from '../store/useAppStore'
 import type { UiContentBlock, UiMessage } from '../types/domain'
 import { ApprovalCard } from './ApprovalCard'
 import { Composer } from './Composer'
+import { DeliverableCard } from './DeliverableCard'
 import { QuestionCard } from './QuestionCard'
 
 const markdownComponents = {
@@ -257,6 +258,15 @@ function renderBlock(block: UiContentBlock, index: number) {
           src={block.dataUrl}
           alt="图片附件"
           className="my-2 max-h-64 rounded border border-[#D8D5CB] object-contain"
+        />
+      )
+    case 'deliverable':
+      return (
+        <DeliverableCard
+          key={index}
+          path={block.path}
+          description={block.description}
+          mimeType={block.mimeType}
         />
       )
     case 'unknown':
