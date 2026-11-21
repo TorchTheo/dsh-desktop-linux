@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use crate::config::AppConfig;
@@ -107,11 +107,27 @@ pub struct PluginBundleInfo {
     pub installed: bool,
     pub removable: bool,
     pub availability: String,
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_value")]
     pub description: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_value")]
     pub version: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_value")]
     pub source: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_string_or_value")]
     pub error: Option<String>,
     pub entries: Vec<PluginEntryInfo>,
+}
+
+fn deserialize_optional_string_or_value<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(
+        Option::<Value>::deserialize(deserializer)?.map(|value| match value {
+            Value::String(text) => text,
+            other => other.to_string(),
+        }),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -324,6 +340,34 @@ pub struct SubagentEvent {
 mod tests {
     use super::*;
     use serde_json::{json, to_value};
+
+    #[test]
+    fn plugin_bundle_accepts_non_string_metadata() {
+        let bundle: PluginBundleInfo = serde_json::from_value(json!({
+            "name": "example",
+            "enabled": false,
+            "installed": true,
+            "removable": true,
+            "availability": "unavailable",
+            "description": null,
+            "version": 1,
+            "error": {"code": "unsupported-platform"},
+            "source": {"kind": "file", "spec": "..."},
+            "entries": []
+        }))
+        .unwrap();
+
+        assert_eq!(
+            bundle.error.as_deref(),
+            Some(r#"{"code":"unsupported-platform"}"#)
+        );
+        assert_eq!(
+            bundle.source.as_deref(),
+            Some(r#"{"kind":"file","spec":"..."}"#)
+        );
+        assert_eq!(bundle.description, None);
+        assert_eq!(bundle.version.as_deref(), Some("1"));
+    }
 
     #[test]
     fn existing_snapshots_default_new_storage_fields() {

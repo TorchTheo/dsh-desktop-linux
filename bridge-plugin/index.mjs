@@ -34,6 +34,25 @@ function pluginManagerOf(ctx) {
   return manager
 }
 
+function normalizeBundleError(value) {
+  if (value == null) return null
+  if (typeof value === 'string') return value
+  if (typeof value.message === 'string') {
+    return typeof value.code === 'string' ? `${value.code}: ${value.message}` : value.message
+  }
+  if (typeof value.code === 'string') return value.code
+  return JSON.stringify(value)
+}
+
+function normalizeBundleSource(value) {
+  if (value == null) return null
+  if (typeof value === 'string') return value
+  for (const key of ['spec', 'url', 'path', 'type']) {
+    if (typeof value[key] === 'string') return value[key]
+  }
+  return JSON.stringify(value)
+}
+
 export function apply(ctx, config) {
   const rootFiber = ctx.root.fiber
   const transport = new JsonRpcLineTransport(config.input ?? process.stdin, config.output ?? process.stdout)
@@ -158,8 +177,8 @@ html[data-dsh-desktop-theme='bauhaus'],
           availability: bundle.availability,
           description: bundle.description ?? null,
           version: bundle.version ?? null,
-          source: bundle.source ?? null,
-          error: bundle.error ?? null,
+          source: normalizeBundleSource(bundle.source),
+          error: normalizeBundleError(bundle.error),
           entries: bundle.rows.map(({ rowId, moduleName, entryId }) => ({
             rowId, moduleName, entryId: entryId ?? null,
           })),
