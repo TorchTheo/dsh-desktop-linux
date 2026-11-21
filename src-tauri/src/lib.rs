@@ -62,6 +62,7 @@ pub fn run() {
             commands::restart_worker,
             commands::create_session,
             commands::send_query,
+            commands::rewind_session,
             commands::abort_session,
             commands::list_models,
             commands::set_session_model,
@@ -147,6 +148,15 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
                     "dsh://session-status",
                     json!({ "sessionId": session_id, "status": status }),
                 )
+            }
+            BackendEvent::SessionTelemetry(mut event) => {
+                let session_id = event.session_id.clone();
+                event.telemetry.snapshot_count = tokio::task::spawn_blocking(move || {
+                    storage::snapshot::snapshot_count(&session_id)
+                })
+                .await
+                .unwrap_or_default();
+                app.emit("dsh://session-telemetry", event)
             }
             BackendEvent::SessionEvent(event) => {
                 if let UiSessionEvent::TitleUpdated { session_id, title } = &event {

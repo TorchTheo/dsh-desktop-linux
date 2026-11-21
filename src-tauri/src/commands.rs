@@ -1,18 +1,20 @@
+use std::path::Path;
+
 use serde_json::Value;
 use tauri::{AppHandle, Manager, State, Url};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::oneshot;
-use uuid::Uuid;
 
 use crate::{
     config::AppConfig,
     domain::{
-        AppStateSnapshot, ApprovalOutcome, ImageAttachment, ProviderModels, SessionModelSelection,
-        SessionRunStatus, SessionSummary, UiSessionDetail, WorkerStatus, WorkspaceSummary,
+        AppStateSnapshot, ApprovalOutcome, ImageAttachment, ProviderModels, RewindResult,
+        SessionModelSelection, SessionRunStatus, SessionSummary, UiSessionDetail, WorkerStatus,
+        WorkspaceSummary,
     },
-    state::{now_millis, AppState},
-    storage,
+    state::AppState,
+    storage::{self, snapshot},
 };
 
 #[tauri::command]
@@ -44,6 +46,7 @@ pub(crate) async fn load_session_history(
     tokio::task::spawn_blocking(move || {
         let home = storage::dsh_home_dir();
         let transcript = storage::transcript::load_session_transcript(&home, &session_id);
+        let snapshot_count = snapshot::snapshot_count(&session_id);
         if let Some(session) = empty_session.filter(|_| {
             transcript.is_err()
                 && storage::transcript::find_session_log_path(&home, &session_id).is_none()
@@ -53,9 +56,16 @@ pub(crate) async fn load_session_history(
                 messages: Vec::new(),
                 provider: None,
                 model: None,
+                telemetry: crate::domain::SessionTelemetry {
+                    snapshot_count,
+                    ..Default::default()
+                },
             });
         }
-        transcript
+        transcript.map(|mut detail| {
+            detail.telemetry.snapshot_count = snapshot_count;
+            detail
+        })
     })
     .await
     .map_err(|error| error.to_string())?
@@ -86,34 +96,8 @@ pub(crate) async fn create_session(
     state: State<'_, AppState>,
     cwd: Option<String>,
 ) -> Result<SessionSummary, String> {
-    // Register the session before a replacement worker reads the sessions to resume.
-    let worker = state.adapter.lock().await;
-    let adapter = worker
-        .as_ref()
-        .filter(|adapter| adapter.is_running())
-        .ok_or_else(|| "dsh SDK worker is not running".to_string())?;
-    let session_id = Uuid::new_v4().to_string();
     let cwd = cwd.unwrap_or_else(|| state.config.read().unwrap().default_cwd.clone());
-    let cwd = adapter.set_working_directory(&session_id, &cwd).await?;
-    let now = now_millis();
-    let session = SessionSummary {
-        session_id,
-        title: "New session".into(),
-        cwd,
-        status: SessionRunStatus::Idle,
-        created_at: now,
-        updated_at: now,
-        pinned: false,
-        archived: false,
-        persisted: false,
-    };
-    state.sessions.write().unwrap().push(session.clone());
-    state
-        .active_worker_sessions
-        .write()
-        .unwrap()
-        .insert(session.session_id.clone());
-    Ok(session)
+    state.create_session(&cwd).await
 }
 
 #[tauri::command]
@@ -122,12 +106,62 @@ pub(crate) async fn send_query(
     session_id: String,
     text: String,
     images: Option<Vec<ImageAttachment>>,
+    client_message_id: Option<String>,
 ) -> Result<Option<String>, String> {
     let adapter = state.sdk().await?;
     state.ensure_session_resumed(&adapter, &session_id).await?;
+    if let Some(message_id) = client_message_id {
+        let cwd = state.session_summary(&session_id)?.cwd;
+        let snapshot_session = session_id.clone();
+        tokio::task::spawn_blocking(move || {
+            if let Some(tree_oid) = snapshot::capture_git_snapshot(Path::new(&cwd)) {
+                if let Err(error) = snapshot::save_snapshot(&snapshot_session, message_id, tree_oid) {
+                    tracing::warn!(%error, session_id = %snapshot_session, "Could not save workspace snapshot");
+                }
+            }
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    }
     adapter
         .send_query(&session_id, &text, images.unwrap_or_default())
         .await
+}
+
+#[tauri::command]
+pub(crate) async fn rewind_session(
+    state: State<'_, AppState>,
+    session_id: String,
+    target_message_id: String,
+    restore_workspace: bool,
+) -> Result<RewindResult, String> {
+    let cwd = state.session_summary(&session_id)?.cwd;
+    state.sdk().await?;
+    let (workspace_restored, workspace_note) = if restore_workspace {
+        let cwd = cwd.clone();
+        tokio::task::spawn_blocking(move || {
+            match snapshot::find_snapshot(&session_id, &target_message_id) {
+                Ok(Some(tree_oid)) => {
+                    match snapshot::restore_git_snapshot(Path::new(&cwd), &tree_oid) {
+                        Ok(()) => (true, "工作区文件已回滚至发送前状态".into()),
+                        Err(error) => (false, format!("工作区回滚失败：{error}")),
+                    }
+                }
+                Ok(None) => (false, "未找到目标消息发送前的工作区快照".into()),
+                Err(error) => (false, format!("无法读取工作区快照：{error}")),
+            }
+        })
+        .await
+        .map_err(|error| error.to_string())?
+    } else {
+        (false, "未请求回滚工作区".into())
+    };
+    let session = state.create_session(&cwd).await?;
+    Ok(RewindResult {
+        session,
+        workspace_restored,
+        workspace_note,
+    })
 }
 
 #[tauri::command]

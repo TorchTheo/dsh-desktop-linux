@@ -26,9 +26,9 @@ use crate::{
     config::AppConfig,
     domain::{
         ApprovalOutcome, ApprovalRequestEvent, BridgeCapabilities, ImageAttachment, ProviderModels,
-        SessionModelSelection, SessionRunStatus, StreamDeltaEvent, SubagentEvent, UiContentBlock,
-        UiMessage, UiSessionEvent, UserQuestionCancelledEvent, UserQuestionRequestEvent,
-        WorkerStatus,
+        SessionModelSelection, SessionRunStatus, SessionTelemetry, SessionTelemetryEvent,
+        StreamDeltaEvent, SubagentEvent, UiContentBlock, UiMessage, UiSessionEvent,
+        UserQuestionCancelledEvent, UserQuestionRequestEvent, WorkerStatus,
     },
 };
 
@@ -483,6 +483,7 @@ async fn dispatch_messages(
     events: mpsc::UnboundedSender<BackendEvent>,
     stopping: Arc<AtomicBool>,
 ) {
+    let mut telemetry = HashMap::new();
     while let Some(message) = incoming.recv().await {
         match message {
             IncomingMessage::Request { id, method, params } => {
@@ -511,7 +512,7 @@ async fn dispatch_messages(
                 .await;
             }
             IncomingMessage::Notification { method, params } => {
-                dispatch_notification(&events, &pending, &method, params);
+                dispatch_notification(&events, &pending, &mut telemetry, &method, params);
             }
         }
     }
@@ -561,6 +562,7 @@ fn project_server_request(
 fn dispatch_notification(
     events: &mpsc::UnboundedSender<BackendEvent>,
     pending: &ServerRequests,
+    telemetry: &mut HashMap<String, SessionTelemetry>,
     method: &str,
     params: Value,
 ) {
@@ -573,7 +575,14 @@ fn dispatch_notification(
         }
         "session.event" => {
             if let Some(session_id) = params["sessionId"].as_str() {
-                for event in project_session_event(session_id, &params["event"]) {
+                let event = &params["event"];
+                if let Some(telemetry) = update_telemetry(telemetry, session_id, event) {
+                    let _ = events.send(BackendEvent::SessionTelemetry(SessionTelemetryEvent {
+                        session_id: session_id.into(),
+                        telemetry: telemetry.clone(),
+                    }));
+                }
+                for event in project_session_event(session_id, event) {
                     let _ = events.send(BackendEvent::SessionEvent(event));
                 }
             }
@@ -624,6 +633,47 @@ fn dispatch_notification(
         _ => return,
     };
     let _ = events.send(event);
+}
+
+fn update_telemetry<'a>(
+    sessions: &'a mut HashMap<String, SessionTelemetry>,
+    session_id: &str,
+    event: &Value,
+) -> Option<&'a SessionTelemetry> {
+    let data = &event["data"];
+    let kind = event["type"].as_str()?;
+    match kind {
+        "assistant/message" if data["usage"].is_object() => {}
+        "request/context" if data["contextWindow"].is_u64() => {}
+        "sandbox/mode" if data.is_string() || data["mode"].is_string() => {}
+        "approval/policy" if data.is_string() || data["policy"].is_string() => {}
+        "turn/start" => {}
+        _ => return None,
+    }
+    let telemetry = sessions.entry(session_id.into()).or_default();
+    match kind {
+        "assistant/message" => telemetry.add_usage(&data["usage"]),
+        "request/context" => telemetry.context_window = data["contextWindow"].as_u64(),
+        "sandbox/mode" => {
+            telemetry.sandbox_mode = data
+                .as_str()
+                .or_else(|| data["mode"].as_str())
+                .map(str::to_owned);
+        }
+        "approval/policy" => {
+            telemetry.approval_policy = data
+                .as_str()
+                .or_else(|| data["policy"].as_str())
+                .map(str::to_owned);
+        }
+        "turn/start" => {
+            telemetry.turn_count = data["turn"]
+                .as_u64()
+                .unwrap_or_else(|| telemetry.turn_count.saturating_add(1));
+        }
+        _ => unreachable!(),
+    }
+    Some(telemetry)
 }
 
 pub fn project_session_event(session_id: &str, event: &Value) -> Vec<UiSessionEvent> {
@@ -828,6 +878,66 @@ mod tests {
 
     fn project(event: Value) -> Vec<UiSessionEvent> {
         project_session_event("s", &event)
+    }
+
+    #[test]
+    fn session_notifications_emit_isolated_telemetry() {
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        let pending = ServerRequests::default();
+        let mut sessions = HashMap::new();
+        let mut send = |session_id: &str, kind: &str, data: Value| {
+            dispatch_notification(
+                &sender,
+                &pending,
+                &mut sessions,
+                "session.event",
+                json!({"sessionId": session_id, "event": {"type": kind, "data": data}}),
+            );
+        };
+
+        send("first", "turn/start", json!({"turn": 3}));
+        send(
+            "second",
+            "assistant/message",
+            json!({"usage": {"output_tokens": 99}}),
+        );
+        send(
+            "first",
+            "assistant/message",
+            json!({"usage": {
+                "input_tokens": 1, "cacheReadTokens": 2, "cache_creation_input_tokens": 3, "outputTokens": 4
+            }}),
+        );
+        send(
+            "first",
+            "assistant/message",
+            json!({"usage": {"output_tokens": 5}}),
+        );
+        send("first", "request/context", json!({"contextWindow": 100}));
+        send("first", "sandbox/mode", json!({"mode": "workspace-write"}));
+        send("first", "approval/policy", json!({"policy": "on-request"}));
+
+        let mut last_by_session = HashMap::new();
+        while let Ok(event) = receiver.try_recv() {
+            if let BackendEvent::SessionTelemetry(event) = event {
+                last_by_session.insert(event.session_id, event.telemetry);
+            }
+        }
+        assert_eq!(last_by_session["second"].output_tokens, 99);
+        assert_eq!(
+            last_by_session["first"],
+            SessionTelemetry {
+                uncached_input_tokens: 1,
+                cache_read_tokens: 2,
+                cache_write_tokens: 3,
+                output_tokens: 9,
+                context_window: Some(100),
+                sandbox_mode: Some("workspace-write".into()),
+                approval_policy: Some("on-request".into()),
+                turn_count: 3,
+                ..Default::default()
+            }
+        );
     }
 
     #[test]

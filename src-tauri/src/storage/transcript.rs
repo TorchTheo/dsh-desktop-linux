@@ -1,12 +1,15 @@
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{self, BufRead},
     path::{Path, PathBuf},
 };
 
 use serde_json::Value;
 
-use crate::{domain::UiSessionDetail, protocol::sdk_adapter::decode_message};
+use crate::{
+    domain::{SessionTelemetry, UiSessionDetail},
+    protocol::sdk_adapter::decode_message,
+};
 
 use super::{
     session_id_component,
@@ -32,6 +35,34 @@ pub(super) fn read_log(path: &Path) -> io::Result<impl Iterator<Item = io::Resul
     Ok(io::BufReader::new(decoder).split(b'\n'))
 }
 
+fn cached_telemetry(cache_path: &Path) -> (SessionTelemetry, bool) {
+    let cache = fs::read(cache_path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+        .unwrap_or_default();
+    let rows = &cache["record"]["rows"];
+    let totals = &rows["tokenUsage"]["val"]["totals"];
+    let pressure = &rows["contextPressure"]["val"];
+    let breakdown = &rows["contextBreakdown"]["val"]["breakdown"];
+    let mut telemetry = SessionTelemetry {
+        context_window: pressure["contextWindow"].as_u64(),
+        surface_tokens: pressure["surfaceTokens"].as_u64(),
+        system_tokens: breakdown["systemTokens"].as_u64(),
+        tools_tokens: breakdown["toolsTokens"].as_u64(),
+        message_tokens: breakdown["messageTokens"].as_u64(),
+        sandbox_mode: rows["sandboxMode"]["val"].as_str().map(str::to_owned),
+        approval_policy: rows["approvalState"]["val"]["policy"]
+            .as_str()
+            .map(str::to_owned),
+        turn_count: rows["turnBoundary"]["val"]["lastTurn"]
+            .as_u64()
+            .unwrap_or_default(),
+        ..SessionTelemetry::default()
+    };
+    telemetry.add_usage(totals);
+    (telemetry, totals.is_object())
+}
+
 pub fn load_session_transcript(
     dsh_home: &Path,
     session_id: &str,
@@ -44,12 +75,14 @@ pub fn load_session_transcript(
     let cache_path = cache_directory(dsh_home).join(format!("{session_id}.json"));
     let cached = flags.cached_summary(session_id, &cache_path);
     let has_cache = cached.is_some();
+    let (telemetry, has_cached_usage) = cached_telemetry(&cache_path);
     let mut detail = UiSessionDetail {
         session: cached
             .unwrap_or_else(|| flags.summary(session_id, &Value::Null, &Value::Null, &path)),
         messages: Vec::new(),
         provider: None,
         model: None,
+        telemetry,
     };
 
     for (line_index, line) in lines.enumerate() {
@@ -64,7 +97,12 @@ pub fn load_session_transcript(
             {
                 Some("user")
             }
-            Some("assistant/message") => Some("assistant"),
+            Some("assistant/message") => {
+                if !has_cached_usage {
+                    detail.telemetry.add_usage(&data["usage"]);
+                }
+                Some("assistant")
+            }
             Some("tool/result") => Some("tool"),
             Some("session") if !has_cache => {
                 detail.session.created_at = event["createdAt"].as_u64().unwrap_or_default();
@@ -102,6 +140,71 @@ mod tests {
 
     use super::*;
     use crate::{domain::UiContentBlock, storage::tests::TestHome};
+
+    #[test]
+    fn prefers_projcache_usage_and_falls_back_to_assistant_usage() {
+        let home = TestHome::new();
+        home.write_log(
+            "telemetry",
+            r#"{"type":"assistant/message","data":{"usage":{"input_tokens":20,"cache_read_input_tokens":30,"cache_creation_input_tokens":40,"output_tokens":50}}}
+{"type":"assistant/message","data":{"usage":{"uncachedInputTokens":2,"cacheReadTokens":3,"cacheWriteTokens":4,"outputTokens":5}}}
+{"type":"user/message","data":{"usage":{"output_tokens":99}}}"#,
+        );
+        let cache = "storages/session_projcache/sessions/telemetry.json";
+        let mut rows = json!({
+            "tokenUsage": {"val": {"totals": {
+                "uncachedInputTokens": 1, "cacheReadTokens": 2, "cacheWriteTokens": 3, "outputTokens": 4
+            }}},
+            "contextPressure": {"val": {"surfaceTokens": 5, "contextWindow": 6}},
+            "contextBreakdown": {"val": {"breakdown": {"systemTokens": 7, "toolsTokens": 8, "messageTokens": 9}}},
+            "sandboxMode": {"val": "workspace-write"},
+            "approvalState": {"val": {"policy": "on-request"}},
+            "turnBoundary": {"val": {"lastTurn": 10}}
+        });
+        home.write(
+            cache,
+            &serde_json::to_vec(&json!({"record":{"rows":rows}})).unwrap(),
+        );
+        let expected = SessionTelemetry {
+            uncached_input_tokens: 1,
+            cache_read_tokens: 2,
+            cache_write_tokens: 3,
+            output_tokens: 4,
+            surface_tokens: Some(5),
+            context_window: Some(6),
+            system_tokens: Some(7),
+            tools_tokens: Some(8),
+            message_tokens: Some(9),
+            sandbox_mode: Some("workspace-write".into()),
+            approval_policy: Some("on-request".into()),
+            turn_count: 10,
+            ..Default::default()
+        };
+        assert_eq!(
+            load_session_transcript(&home.0, "telemetry")
+                .unwrap()
+                .telemetry,
+            expected
+        );
+
+        rows.as_object_mut().unwrap().remove("tokenUsage");
+        home.write(
+            cache,
+            &serde_json::to_vec(&json!({"record":{"rows":rows}})).unwrap(),
+        );
+        assert_eq!(
+            load_session_transcript(&home.0, "telemetry")
+                .unwrap()
+                .telemetry,
+            SessionTelemetry {
+                uncached_input_tokens: 22,
+                cache_read_tokens: 33,
+                cache_write_tokens: 44,
+                output_tokens: 55,
+                ..expected
+            }
+        );
+    }
 
     #[test]
     fn replays_messages_and_metadata_from_a_compressed_log() {

@@ -1,3 +1,4 @@
+pub mod snapshot;
 pub mod transcript;
 pub mod workspace;
 

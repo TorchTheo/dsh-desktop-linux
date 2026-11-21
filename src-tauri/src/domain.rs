@@ -159,6 +159,39 @@ pub struct UiMessage {
     pub is_error: bool,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTelemetry {
+    pub uncached_input_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub output_tokens: u64,
+    pub context_window: Option<u64>,
+    pub surface_tokens: Option<u64>,
+    pub system_tokens: Option<u64>,
+    pub tools_tokens: Option<u64>,
+    pub message_tokens: Option<u64>,
+    pub sandbox_mode: Option<String>,
+    pub approval_policy: Option<String>,
+    pub turn_count: u64,
+    pub snapshot_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionTelemetryEvent {
+    pub session_id: String,
+    pub telemetry: SessionTelemetry,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RewindResult {
+    pub session: SessionSummary,
+    pub workspace_restored: bool,
+    pub workspace_note: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiSessionDetail {
@@ -166,6 +199,8 @@ pub struct UiSessionDetail {
     pub messages: Vec<UiMessage>,
     pub provider: Option<String>,
     pub model: Option<String>,
+    #[serde(default)]
+    pub telemetry: SessionTelemetry,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

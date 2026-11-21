@@ -9,6 +9,7 @@ use std::{
 };
 
 use tokio::sync::{mpsc, Mutex};
+use uuid::Uuid;
 
 use crate::{
     config::AppConfig,
@@ -101,6 +102,35 @@ impl AppState {
             .find(|session| session.session_id == session_id)
             .cloned()
             .ok_or_else(|| format!("Unknown session: {session_id}"))
+    }
+
+    pub async fn create_session(&self, cwd: &str) -> Result<SessionSummary, String> {
+        // Register the session before a replacement worker reads the sessions to resume.
+        let worker = self.adapter.lock().await;
+        let adapter = worker
+            .as_ref()
+            .filter(|adapter| adapter.is_running())
+            .ok_or_else(|| "dsh SDK worker is not running".to_string())?;
+        let session_id = Uuid::new_v4().to_string();
+        let cwd = adapter.set_working_directory(&session_id, cwd).await?;
+        let now = now_millis();
+        let session = SessionSummary {
+            session_id,
+            title: "New session".into(),
+            cwd,
+            status: SessionRunStatus::Idle,
+            created_at: now,
+            updated_at: now,
+            pinned: false,
+            archived: false,
+            persisted: false,
+        };
+        self.sessions.write().unwrap().push(session.clone());
+        self.active_worker_sessions
+            .write()
+            .unwrap()
+            .insert(session.session_id.clone());
+        Ok(session)
     }
 
     pub async fn ensure_session_resumed(
