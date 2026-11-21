@@ -6,6 +6,7 @@ import { InspectorPanel } from './components/InspectorPanel'
 import { SettingsModal } from './components/SettingsModal'
 import { Sidebar } from './components/Sidebar'
 import { PluginsView } from './components/PluginsView'
+import { DshPluginHostProvider, DshSlot, useDshSlots } from './plugins/dshPluginHost'
 import { TrajectoryView } from './components/TrajectoryView'
 import { useAppStore } from './store/useAppStore'
 
@@ -18,6 +19,11 @@ export function App() {
   const sessions = useAppStore((s) => s.sessions)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const activeView = useAppStore((s) => s.activeView)
+  const activePluginPanelKey = useAppStore((s) => s.activePluginPanelKey)
+  const panelSlots = useDshSlots('sidebar.panellist')
+  const activePluginPanelLabel =
+    panelSlots.find((p) => (p.id ?? p.key ?? p.uid) === activePluginPanelKey)?.label ??
+    activePluginPanelKey
   const setActiveView = useAppStore((s) => s.setActiveView)
   const inspectorOpen = useAppStore((s) => s.inspectorOpen)
   const setInspectorOpen = useAppStore((s) => s.setInspectorOpen)
@@ -83,7 +89,11 @@ export function App() {
         <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[#D8D5CB] bg-[#F4F3EE] px-5">
           <div className="flex min-w-0 items-center gap-2.5">
             <h2 className="truncate text-sm font-semibold tracking-tight text-[#141413]">
-              {activeSession ? (activeSession.title === 'New session' ? '新建会话' : activeSession.title) : '新建会话'}
+              {activeView === 'plugin-panel'
+                ? (activePluginPanelLabel ?? '插件面板')
+                : activeSession
+                  ? (activeSession.title === 'New session' ? '新建会话' : activeSession.title)
+                  : '新建会话'}
             </h2>
             {activeSession && (
               <span className="font-mono-tabular hidden text-[10px] text-[#8A8880] sm:inline">
@@ -163,11 +173,27 @@ export function App() {
           </div>
         )}
 
-        {activeView === 'studio' ? <ChatStream /> : activeView === 'trajectory' ? <TrajectoryView /> : <PluginsView />}
+        {activeView === 'studio' ? (
+          <ChatStream />
+        ) : activeView === 'trajectory' ? (
+          <TrajectoryView />
+        ) : activeView === 'plugin-panel' && activePluginPanelKey ? (
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F4F3EE]">
+            <DshSlot
+              name="main"
+              slotKey={activePluginPanelKey}
+              className="flex h-full min-h-0 w-full flex-1 flex-col overflow-auto"
+            />
+          </section>
+        ) : (
+          <PluginsView />
+        )}
       </main>
 
       <InspectorPanel />
       <SettingsModal />
+      <DshPluginHostProvider />
+      <DshSlot name="shell.overlay" />
     </div>
   )
 }

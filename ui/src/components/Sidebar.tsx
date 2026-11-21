@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
 } from 'lucide-react'
+import { useDshSlots } from '../plugins/dshPluginHost'
 import { useAppStore } from '../store/useAppStore'
 import type { SessionSummary } from '../types/domain'
 
@@ -37,6 +38,10 @@ interface WorkspaceTreeNode {
 
 export function Sidebar() {
   const sidebarOpen = useAppStore((s) => s.sidebarOpen)
+  const activeView = useAppStore((s) => s.activeView)
+  const activePluginPanelKey = useAppStore((s) => s.activePluginPanelKey)
+  const openPluginPanel = useAppStore((s) => s.openPluginPanel)
+  const panelSlots = useDshSlots('sidebar.panellist')
   const workspaces = useAppStore((s) => s.workspaces)
   const sessions = useAppStore((s) => s.sessions)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
@@ -279,6 +284,38 @@ export function Sidebar() {
             </div>
           )}
         </div>
+
+        {panelSlots.length > 0 && (
+          <div className="shrink-0 border-t border-[#D8D5CB] bg-[#F4F3EE]/70 px-2.5 py-2">
+            <div className="mb-1.5 px-1 font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#8A8880]">
+              扩展面板
+            </div>
+            <div className="space-y-1">
+              {panelSlots.map((entry) => {
+                const panelKey = entry.id ?? entry.key ?? entry.uid
+                const active = activeView === 'plugin-panel' && activePluginPanelKey === panelKey
+                const IconComp = entry.Component
+                return (
+                  <button
+                    key={entry.uid}
+                    type="button"
+                    onClick={() => openPluginPanel(panelKey)}
+                    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-medium transition ${
+                      active
+                        ? 'bg-[#141413] text-[#FAF9F5]'
+                        : 'text-[#141413] hover:bg-[#ECEAE2]'
+                    }`}
+                  >
+                    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
+                      <IconComp size={15} />
+                    </span>
+                    <span className="truncate">{entry.label ?? panelKey}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between border-t border-[#D8D5CB] bg-[#F4F3EE]/60 px-3 py-2 text-[11px] text-[#8A8880]">
           <button

@@ -17,6 +17,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { openExternalUrl } from '../api/tauri'
+import { DshSlot } from '../plugins/dshPluginHost'
 import { useAppStore } from '../store/useAppStore'
 import type { UiContentBlock, UiMessage } from '../types/domain'
 import { ApprovalCard } from './ApprovalCard'
@@ -234,7 +235,12 @@ function renderBlock(block: UiContentBlock, index: number) {
     case 'thinking':
       return <ThinkingBlock key={index} text={block.thinking} />
     case 'toolUse':
-      return <ToolUseBlock key={index} name={block.name} id={block.id} input={block.input} />
+      return (
+        <div key={index}>
+          <ToolUseBlock name={block.name} id={block.id} input={block.input} />
+          <DshSlot name="tool.call.toolview" slotKey={block.name} extraProps={{ block }} />
+        </div>
+      )
     case 'toolResult':
       return (
         <ToolResultBlock
@@ -668,6 +674,13 @@ export function ChatStream() {
                         {group.finalBlocks.map((block, idx) => renderBlock(block, idx))}
                       </div>
                     )}
+
+                    <DshSlot
+                      name="conversation.chat.turnTail"
+                      injectArgs={[activeSessionId]}
+                      extraProps={{ sessionId: activeSessionId, turn: group }}
+                      className="mt-2 space-y-2"
+                    />
 
                     <div className="mt-1.5 flex items-center gap-2 font-mono-tabular text-[10px] text-[#8A8880]">
                       <span>{formatClock(group.timestamp)}</span>

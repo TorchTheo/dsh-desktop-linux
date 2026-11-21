@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { ArrowUp, FolderOpen, ImagePlus, Square, X } from 'lucide-react'
+import { DshSlot } from '../plugins/dshPluginHost'
 import { useAppStore } from '../store/useAppStore'
 import type { ImageAttachment } from '../types/domain'
 import { ModelSelector } from './ModelSelector'
@@ -326,6 +327,12 @@ export function Composer({ centered = false }: ComposerProps) {
                   停止
                 </button>
               )}
+
+              <DshSlot
+                name="conversation.input.right"
+                injectArgs={[activeSessionId]}
+                className="inline-flex items-center gap-1"
+              />
 
               <button
                 type="button"
