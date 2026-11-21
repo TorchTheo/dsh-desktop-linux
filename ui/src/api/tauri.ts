@@ -8,6 +8,8 @@ import type {
   BridgeCapabilities,
   ImageAttachment,
   ProviderModels,
+  RewindResult,
+  SessionTelemetryEvent,
   SessionModelSelection,
   SessionStatusEvent,
   SessionSummary,
@@ -83,11 +85,25 @@ export async function sendQuery(
   sessionId: string,
   text: string,
   images?: ImageAttachment[],
+  clientMessageId?: string,
 ): Promise<string | null> {
   return invoke<string | null>('send_query', {
     sessionId,
     text,
     images: images && images.length > 0 ? images : null,
+    clientMessageId: clientMessageId ?? null,
+  })
+}
+
+export async function rewindSession(
+  sessionId: string,
+  targetMessageId: string,
+  restoreWorkspace: boolean,
+): Promise<RewindResult> {
+  return invoke<RewindResult>('rewind_session', {
+    sessionId,
+    targetMessageId,
+    restoreWorkspace,
   })
 }
 
@@ -139,6 +155,7 @@ export interface BackendEventHandlers {
   onUserQuestionCancelled: (event: UserQuestionCancelledEvent) => void
   onSubagentUpdate: (event: SubagentEvent) => void
   onOpenDirectory: (path: string) => void
+  onSessionTelemetry: (event: SessionTelemetryEvent) => void
 }
 
 export async function subscribeBackendEvents(
@@ -159,6 +176,7 @@ export async function subscribeBackendEvents(
     ),
     listen<SubagentEvent>('dsh://subagent-update', (e) => handlers.onSubagentUpdate(e.payload)),
     listen<string>('dsh://open-directory', (e) => handlers.onOpenDirectory(e.payload)),
+    listen<SessionTelemetryEvent>('dsh://session-telemetry', (e) => handlers.onSessionTelemetry(e.payload)),
   ])
   return () => {
     for (const unlisten of unlisteners) {

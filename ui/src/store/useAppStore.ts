@@ -8,6 +8,7 @@ import type {
   ImageAttachment,
   ProviderModels,
   SessionSummary,
+  SessionTelemetry,
   SubagentEvent,
   UiContentBlock,
   UiMessage,
@@ -55,6 +56,9 @@ interface AppStore {
   abortingSessionId: string | null
   loadedHistoryIds: Record<string, boolean>
   sessionMetaById: Record<string, SessionMeta>
+  telemetryBySession: Record<string, SessionTelemetry>
+  composerDraft: string | null
+  noticeBanner: string | null
   streamingBySession: Record<string, StreamingDraft>
   messagesBySession: Record<string, UiMessage[]>
   approvals: ApprovalRequestEvent[]
@@ -72,6 +76,9 @@ interface AppStore {
   setSearchQuery: (q: string) => void
   setShowArchived: (show: boolean) => void
   clearError: () => void
+  clearNotice: () => void
+  consumeComposerDraft: () => string | null
+  rewindToMessage: (messageId: string, restoreWorkspace: boolean, prefillText?: string) => Promise<void>
   refreshSessions: () => Promise<void>
   fetchModels: () => Promise<void>
   setSessionModel: (provider: string, model: string, reasoningEffort?: string | null) => Promise<void>
@@ -107,6 +114,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   abortingSessionId: null,
   loadedHistoryIds: {},
   sessionMetaById: {},
+  telemetryBySession: {},
+  composerDraft: null,
+  noticeBanner: null,
   streamingBySession: {},
   messagesBySession: {},
   approvals: [],
@@ -123,6 +133,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setSearchQuery: (q) => set({ searchQuery: q }),
   setShowArchived: (show) => set({ showArchived: show }),
   clearError: () => set({ errorBanner: null }),
+  clearNotice: () => set({ noticeBanner: null }),
+  consumeComposerDraft: () => {
+    const draft = get().composerDraft
+    if (draft !== null) set({ composerDraft: null })
+    return draft
+  },
 
   bootstrap: async () => {
     if (!api.isTauriRuntime()) {
@@ -263,6 +279,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }))
       },
 
+      onSessionTelemetry: ({ sessionId, telemetry }) => {
+        set((state) => ({
+          telemetryBySession: {
+            ...state.telemetryBySession,
+            [sessionId]: telemetry,
+          },
+        }))
+      },
+
       onOpenDirectory: (path) => {
         if (path) {
           void get().createSession(path)
@@ -391,6 +416,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           loadingHistoryId: s.loadingHistoryId === sessionId ? null : s.loadingHistoryId,
           loadedHistoryIds: { ...s.loadedHistoryIds, [sessionId]: true },
           messagesBySession: { ...s.messagesBySession, [sessionId]: merged },
+          telemetryBySession: detail.telemetry
+            ? { ...s.telemetryBySession, [sessionId]: detail.telemetry }
+            : s.telemetryBySession,
           sessionMetaById: {
             ...s.sessionMetaById,
             [sessionId]: {
@@ -490,9 +518,32 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }))
 
     try {
-      await api.sendQuery(sessionId, trimmed, images)
+      await api.sendQuery(sessionId, trimmed, images, localMsg.id)
     } catch (error) {
       set({ errorBanner: `发送消息失败：${String(error)}` })
+    }
+  },
+
+  rewindToMessage: async (messageId, restoreWorkspace, prefillText) => {
+    const sessionId = get().activeSessionId
+    if (!sessionId) return
+    try {
+      const result = await api.rewindSession(sessionId, messageId, restoreWorkspace)
+      const prevMessages = get().messagesBySession[sessionId] ?? []
+      const cutIdx = prevMessages.findIndex((m) => m.id === messageId)
+      const keptMessages = cutIdx >= 0 ? prevMessages.slice(0, cutIdx) : []
+      const newId = result.session.sessionId
+      set((state) => ({
+        sessions: [result.session, ...state.sessions],
+        activeSessionId: newId,
+        loadedHistoryIds: { ...state.loadedHistoryIds, [newId]: true },
+        messagesBySession: { ...state.messagesBySession, [newId]: keptMessages },
+        composerDraft: prefillText !== undefined ? prefillText : state.composerDraft,
+        noticeBanner: result.workspaceNote,
+        errorBanner: null,
+      }))
+    } catch (error) {
+      set({ errorBanner: `回退会话失败：${String(error)}` })
     }
   },
 

@@ -12,6 +12,8 @@ export function App() {
   const bootstrap = useAppStore((s) => s.bootstrap)
   const errorBanner = useAppStore((s) => s.errorBanner)
   const clearError = useAppStore((s) => s.clearError)
+  const noticeBanner = useAppStore((s) => s.noticeBanner)
+  const clearNotice = useAppStore((s) => s.clearNotice)
   const sessions = useAppStore((s) => s.sessions)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const activeView = useAppStore((s) => s.activeView)
@@ -138,6 +140,19 @@ export function App() {
               type="button"
               onClick={clearError}
               className="rounded p-0.5 text-[#D13B27] hover:bg-[#D13B27]/15"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {noticeBanner && (
+          <div className="flex items-center justify-between border-b border-[#246A4D]/35 bg-[#246A4D]/10 px-5 py-2 text-xs text-[#194c37]">
+            <span>{noticeBanner}</span>
+            <button
+              type="button"
+              onClick={clearNotice}
+              className="rounded p-0.5 text-[#246A4D] hover:bg-[#246A4D]/15"
             >
               <X className="h-3.5 w-3.5" />
             </button>

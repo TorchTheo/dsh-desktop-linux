@@ -10,6 +10,8 @@ import {
   ChevronRight,
   FolderGit2,
   Loader2,
+  Pencil,
+  RotateCcw,
   TerminalSquare,
   User,
   Wrench,
@@ -421,6 +423,7 @@ export function ChatStream() {
   const workerStatus = useAppStore((s) => s.workerStatus)
   const providers = useAppStore((s) => s.providers)
   const sendQuery = useAppStore((s) => s.sendQuery)
+  const rewindToMessage = useAppStore((s) => s.rewindToMessage)
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const bottomRef = useRef<HTMLDivElement | null>(null)
@@ -435,6 +438,12 @@ export function ChatStream() {
   )
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null)
   const [hoveredTurnId, setHoveredTurnId] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    messageId: string
+    text: string
+  } | null>(null)
 
   const streaming = activeSessionId ? streamingBySession[activeSessionId] : undefined
   const isLoadingHistory = Boolean(activeSessionId && loadingHistoryId === activeSessionId)
@@ -489,6 +498,20 @@ export function ChatStream() {
     sessionApprovals.length,
     sessionQuestions.length,
   ])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [contextMenu])
 
   const jumpToTurn = (id: string) => {
     setActiveTurnId(id)
@@ -581,7 +604,20 @@ export function ChatStream() {
                     }}
                     className="flex scroll-mt-6 items-start justify-end gap-2.5"
                   >
-                    <article className="max-w-[78%] rounded-lg border border-[#D8D5CB] border-r-[3px] border-r-[#D13B27] bg-[#FAF9F5] px-4 py-3">
+                    <article
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        const rawText = extractCopyText(group.userMessage!.blocks)
+                        setContextMenu({
+                          x: Math.min(e.clientX, window.innerWidth - 236),
+                          y: Math.min(e.clientY, window.innerHeight - 170),
+                          messageId: group.userMessage!.id,
+                          text: rawText,
+                        })
+                      }}
+                      title="右键可重新编辑或回退工作区"
+                      className="max-w-[78%] rounded-lg border border-[#D8D5CB] border-r-[3px] border-r-[#D13B27] bg-[#FAF9F5] px-4 py-3"
+                    >
                       <div className="text-[14.5px] leading-relaxed text-[#141413]">
                         {group.userMessage.blocks.map((block, idx) => renderBlock(block, idx))}
                       </div>
@@ -756,6 +792,62 @@ export function ChatStream() {
           </nav>
         )}
       </div>
+      {contextMenu && (
+        <div
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="fixed z-50 w-56 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] py-1 text-xs shadow-md"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const target = contextMenu
+              setContextMenu(null)
+              void rewindToMessage(target.messageId, true, target.text)
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#141413] hover:bg-[#ECEAE2]"
+          >
+            <Pencil className="h-3.5 w-3.5 text-[#1E4D9B]" />
+            <span>重新编辑并回退（含工作区）</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const target = contextMenu
+              setContextMenu(null)
+              void rewindToMessage(target.messageId, true)
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#141413] hover:bg-[#ECEAE2]"
+          >
+            <RotateCcw className="h-3.5 w-3.5 text-[#D13B27]" />
+            <span>回退到此消息（含工作区）</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const target = contextMenu
+              setContextMenu(null)
+              void rewindToMessage(target.messageId, false)
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+          >
+            <RotateCcw className="h-3.5 w-3.5 text-[#8A8880]" />
+            <span>仅回退对话（保留文件）</span>
+          </button>
+          <div className="my-1 h-px bg-[#ECEAE2]" />
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard?.writeText(contextMenu.text)
+              setContextMenu(null)
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+          >
+            <Copy className="h-3.5 w-3.5 text-[#575652]" />
+            <span>复制消息内容</span>
+          </button>
+        </div>
+      )}
       <Composer />
     </>
   )

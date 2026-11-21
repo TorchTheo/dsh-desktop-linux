@@ -14,6 +14,20 @@ const SLASH_COMMANDS: SlashCommandItem[] = [
   { cmd: '/goal', desc: '开启目标驱动模式，持续推进直至完成' },
 ]
 
+function formatCompactTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
+}
+
+function formatSandboxMode(mode: string | null | undefined): string {
+  if (!mode) return ''
+  if (mode === 'danger-full-access') return '完全访问'
+  if (mode === 'workspace-write') return '工作区可写'
+  if (mode === 'read-only') return '只读'
+  return mode
+}
+
 function basename(path: string): string {
   const parts = path.replace(/\/+$/, '').split('/')
   return parts[parts.length - 1] || path
@@ -56,6 +70,9 @@ export function Composer({ centered = false }: ComposerProps) {
   const sessions = useAppStore((s) => s.sessions)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const config = useAppStore((s) => s.config)
+  const telemetryBySession = useAppStore((s) => s.telemetryBySession)
+  const composerDraft = useAppStore((s) => s.composerDraft)
+  const consumeComposerDraft = useAppStore((s) => s.consumeComposerDraft)
   const pickAndSetWorkingDirectory = useAppStore((s) => s.pickAndSetWorkingDirectory)
 
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
@@ -78,6 +95,26 @@ export function Composer({ centered = false }: ComposerProps) {
     setSlashIndex(0)
     setSlashDismissed(false)
   }, [slashQuery])
+
+  useEffect(() => {
+    if (composerDraft !== null) {
+      const next = consumeComposerDraft()
+      if (next !== null) {
+        setText(next)
+        textareaRef.current?.focus()
+      }
+    }
+  }, [composerDraft, consumeComposerDraft])
+
+  const telemetry = activeSessionId ? telemetryBySession[activeSessionId] : undefined
+  const totalInput = telemetry ? telemetry.uncachedInputTokens + telemetry.cacheReadTokens : 0
+  const cacheRate = totalInput > 0 ? Math.round((telemetry!.cacheReadTokens / totalInput) * 1000) / 10 : null
+  const contextUsed = telemetry?.surfaceTokens ?? null
+  const contextMax = telemetry?.contextWindow ?? null
+  const contextPct =
+    contextUsed !== null && contextMax && contextMax > 0
+      ? Math.min(100, Math.round((contextUsed / contextMax) * 1000) / 10)
+      : null
 
   const applySlashCommand = (cmd: string) => {
     setText(`${cmd} `)
@@ -300,6 +337,41 @@ export function Composer({ centered = false }: ComposerProps) {
             </div>
           </div>
         </div>
+
+        {!centered && (
+          <footer className="mt-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 font-mono-tabular text-[10.5px] text-[#8A8880]">
+            <div className="flex flex-wrap items-center gap-3">
+              <span title={telemetry ? `缓存读取 ${telemetry.cacheReadTokens} / 未缓存输入 ${telemetry.uncachedInputTokens}` : '暂无数据'}>
+                缓存命中{" "}
+                <strong className={cacheRate !== null && cacheRate >= 50 ? 'text-[#246A4D]' : 'text-[#575652]'}>
+                  {cacheRate !== null ? `${cacheRate}%` : '--'}
+                </strong>
+              </span>
+              <span>
+                输入 <strong className="text-[#575652]">{telemetry ? formatCompactTokens(totalInput) : '--'}</strong>
+              </span>
+              <span>
+                输出 <strong className="text-[#575652]">{telemetry ? formatCompactTokens(telemetry.outputTokens) : '--'}</strong>
+              </span>
+              {contextUsed !== null && contextMax ? (
+                <span>
+                  上下文{" "}
+                  <strong className="text-[#575652]">
+                    {formatCompactTokens(contextUsed)} / {formatCompactTokens(contextMax)}
+                    {contextPct !== null ? ` (${contextPct}%)` : ''}
+                  </strong>
+                </span>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2.5">
+              {telemetry?.sandboxMode && <span>权限：{formatSandboxMode(telemetry.sandboxMode)}</span>}
+              {telemetry && telemetry.snapshotCount > 0 && (
+                <span>快照：{telemetry.snapshotCount}</span>
+              )}
+              <span>右键用户消息可回退 / 重编辑</span>
+            </div>
+          </footer>
+        )}
       </div>
     </div>
   )

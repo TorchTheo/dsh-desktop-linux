@@ -107,6 +107,7 @@ export interface UiSessionDetail {
   messages: UiMessage[]
   provider: string | null
   model: string | null
+  telemetry?: SessionTelemetry
 }
 
 export type UiSessionEvent =
@@ -165,4 +166,31 @@ export interface SubagentEvent {
   childSessionId: string
   status: string | null
   stopReason: string | null
+}
+
+export interface SessionTelemetry {
+  uncachedInputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  outputTokens: number
+  contextWindow: number | null
+  surfaceTokens: number | null
+  systemTokens: number | null
+  toolsTokens: number | null
+  messageTokens: number | null
+  sandboxMode: string | null
+  approvalPolicy: string | null
+  turnCount: number
+  snapshotCount: number
+}
+
+export interface SessionTelemetryEvent {
+  sessionId: string
+  telemetry: SessionTelemetry
+}
+
+export interface RewindResult {
+  session: SessionSummary
+  workspaceRestored: boolean
+  workspaceNote: string
 }
