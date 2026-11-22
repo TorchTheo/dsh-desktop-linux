@@ -15,6 +15,7 @@ export function ModelSelector() {
   const workerStatus = useAppStore((s) => s.workerStatus)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const sessionMetaById = useAppStore((s) => s.sessionMetaById)
+  const pendingNewSessionModel = useAppStore((s) => s.pendingNewSessionModel)
   const config = useAppStore((s) => s.config)
   const setSessionModel = useAppStore((s) => s.setSessionModel)
 
@@ -43,7 +44,7 @@ export function ModelSelector() {
     return null
   }
 
-  const meta = activeSessionId ? sessionMetaById[activeSessionId] : undefined
+  const meta = activeSessionId ? sessionMetaById[activeSessionId] : (pendingNewSessionModel ?? undefined)
   const currentProvider = meta?.provider ?? config?.provider ?? ''
   const currentModel = meta?.model ?? config?.model ?? ''
   const currentEffort = meta?.reasoningEffort ?? config?.reasoningEffort ?? ''

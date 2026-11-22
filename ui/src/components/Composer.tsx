@@ -90,8 +90,9 @@ export function Composer({ centered = false }: ComposerProps) {
   const skills = useAppStore((s) => s.skills)
   const fetchSkills = useAppStore((s) => s.fetchSkills)
 
+  const pendingNewSessionCwd = useAppStore((s) => s.pendingNewSessionCwd)
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
-  const cwd = activeSession?.cwd ?? config?.defaultCwd ?? ''
+  const cwd = activeSession?.cwd ?? pendingNewSessionCwd ?? config?.defaultCwd ?? ''
   const disabled = workerStatus.state !== 'ready'
   const isRunning = activeSession?.status === 'running'
   const queuedMessages = activeSessionId ? (queuedMessagesBySession[activeSessionId] ?? []) : []

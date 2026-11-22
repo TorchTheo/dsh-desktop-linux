@@ -70,6 +70,10 @@ interface AppStore {
   workspaces: WorkspaceSummary[]
   sessions: SessionSummary[]
   activeSessionId: string | null
+  pendingNewSessionCwd: string | null
+  pendingNewSessionModel: SessionMeta | null
+  pendingNewSessionPreset: string | null
+  pendingNewSessionPermission: PermissionMode | null
   selectedWorkspaceId: string | null
   searchQuery: string
   showArchived: boolean
@@ -128,6 +132,7 @@ interface AppStore {
   abortSession: () => Promise<void>
   selectSession: (sessionId: string) => Promise<void>
   loadSessionHistory: (sessionId: string, force?: boolean) => Promise<void>
+  startNewSessionDraft: (cwd?: string) => void
   createSession: (cwd?: string) => Promise<SessionSummary | null>
   sendQuery: (text: string, images?: ImageAttachment[], options?: { forceImmediate?: boolean }) => Promise<void>
   removeQueuedMessage: (sessionId: string, queuedId: string) => void
@@ -187,6 +192,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   workspaces: [],
   sessions: [],
   activeSessionId: null,
+  pendingNewSessionCwd: null,
+  pendingNewSessionModel: null,
+  pendingNewSessionPreset: null,
+  pendingNewSessionPermission: null,
   selectedWorkspaceId: null,
   searchQuery: '',
   showArchived: false,
@@ -461,7 +470,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
       onOpenDirectory: (path) => {
         if (path) {
-          void get().createSession(path)
+          get().startNewSessionDraft(path)
         }
       },
 
@@ -482,7 +491,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     try {
       const snapshot = await api.getAppState()
-      const initialId = snapshot.sessions[0]?.sessionId ?? null
       const caps = snapshot.bridgeCapabilities ?? DEFAULT_BRIDGE_CAPS
       set({
         initialized: true,
@@ -492,7 +500,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         hostInfo: snapshot.hostInfo ?? null,
         workspaces: snapshot.workspaces ?? [],
         sessions: snapshot.sessions,
-        activeSessionId: initialId,
+        activeSessionId: null,
+        pendingNewSessionCwd: snapshot.config.defaultCwd || null,
         approvals: snapshot.pendingApprovals ?? [],
         questions: snapshot.pendingQuestions ?? [],
       })
@@ -508,9 +517,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (caps.skillsManager) {
         void get().fetchSkills()
       }
-      if (initialId) {
-        void get().loadSessionHistory(initialId)
-      }
+      // Default landing is a fresh draft session; do not auto-open old history
     } catch (error) {
       set({
         initialized: true,
@@ -533,9 +540,58 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setSessionModel: async (provider, model, reasoningEffort = null) => {
     let sessionId = get().activeSessionId
     if (!sessionId) {
-      const created = await get().createSession()
+      const st = get()
+      const draftCwd = st.pendingNewSessionCwd ?? undefined
+      const draftModel = st.pendingNewSessionModel
+      const draftPreset = st.pendingNewSessionPreset
+      const draftPermission = st.pendingNewSessionPermission
+      const created = await get().createSession(draftCwd)
       if (!created) return
       sessionId = created.sessionId
+      set({
+        pendingNewSessionModel: null,
+        pendingNewSessionPreset: null,
+        pendingNewSessionPermission: null,
+      })
+      if (draftPreset) {
+        try {
+          const res = await api.setSessionPreset(sessionId, draftPreset)
+          set((s) => ({
+            sessionPresetById: { ...s.sessionPresetById, [res.sessionId]: res.presetId },
+          }))
+        } catch {
+          // Ignore preset errors on first turn
+        }
+      }
+      if (draftModel?.provider && draftModel?.model) {
+        try {
+          const sel = await api.setSessionModel(
+            sessionId,
+            draftModel.provider,
+            draftModel.model,
+            draftModel.reasoningEffort ?? null,
+          )
+          set((s) => ({
+            sessionMetaById: {
+              ...s.sessionMetaById,
+              [sessionId!]: {
+                provider: sel.provider,
+                model: sel.model,
+                reasoningEffort: sel.reasoningEffort,
+              },
+            },
+          }))
+        } catch {
+          // Ignore model apply errors
+        }
+      }
+      if (draftPermission) {
+        try {
+          await api.setSessionPermission(sessionId, draftPermission)
+        } catch {
+          // Ignore permission apply errors
+        }
+      }
     }
     try {
       const selected = await api.setSessionModel(sessionId, provider, model, reasoningEffort)
@@ -556,11 +612,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setSessionPermission: async (mode) => {
-    let sessionId = get().activeSessionId
+    const sessionId = get().activeSessionId
     if (!sessionId) {
-      const created = await get().createSession()
-      if (!created) return
-      sessionId = created.sessionId
+      set({ pendingNewSessionPermission: mode, errorBanner: null })
+      return
     }
     try {
       const res = await api.setSessionPermission(sessionId, mode)
@@ -683,6 +738,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (get().bridgeCapabilities.sessionJobs) {
       void get().fetchSessionJobs(sessionId)
     }
+  },
+
+  startNewSessionDraft: (cwd) => {
+    const st = get()
+    const selectedWs = st.workspaces.find((w) => w.id === st.selectedWorkspaceId)
+    const nextCwd = cwd ?? selectedWs?.path ?? st.config?.defaultCwd ?? null
+    set({
+      activeSessionId: null,
+      pendingNewSessionCwd: nextCwd,
+      activeView: 'studio',
+      errorBanner: null,
+    })
   },
 
   createSession: async (cwd) => {
@@ -977,7 +1044,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (!selected) return
       const sessionId = get().activeSessionId
       if (!sessionId) {
-        await get().createSession(selected)
+        set({ pendingNewSessionCwd: selected, errorBanner: null })
         return
       }
       const resolved = await api.setWorkingDirectory(sessionId, selected)
@@ -1052,7 +1119,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const activeId = get().activeSessionId
     const presetName = get().agentPresets.find((p) => p.id === presetId)?.name ?? presetId
     if (!activeId) {
-      await get().setDefaultAgentPreset(presetId)
+      set({
+        pendingNewSessionPreset: presetId,
+        noticeBanner: `新会话将使用模式：${presetName}`,
+        errorBanner: null,
+      })
       return
     }
     try {

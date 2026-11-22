@@ -54,7 +54,7 @@ export function Sidebar() {
   const workerStatus = useAppStore((s) => s.workerStatus)
 
   const selectSession = useAppStore((s) => s.selectSession)
-  const createSession = useAppStore((s) => s.createSession)
+  const startNewSessionDraft = useAppStore((s) => s.startNewSessionDraft)
   const forkSession = useAppStore((s) => s.forkSession)
   const updateSessionMeta = useAppStore((s) => s.updateSessionMeta)
   const setSearchQuery = useAppStore((s) => s.setSearchQuery)
@@ -182,7 +182,7 @@ export function Sidebar() {
           <span className="text-xs font-semibold tracking-wide text-[var(--ink-primary)]">工作区与会话</span>
           <button
             type="button"
-            onClick={() => void createSession()}
+            onClick={() => startNewSessionDraft()}
             disabled={workerStatus.state !== 'ready'}
             title="新建会话"
             className="inline-flex items-center gap-1 rounded border border-[var(--ink-primary)] bg-[var(--ink-primary)] px-2 py-1 text-[11px] font-medium text-[var(--bg-surface)] transition hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-35"
@@ -244,7 +244,7 @@ export function Sidebar() {
                       <button
                         type="button"
                         disabled={workerStatus.state !== 'ready'}
-                        onClick={() => void createSession(node.path)}
+                        onClick={() => startNewSessionDraft(node.path)}
                         title={`在「${node.title}」中新建会话`}
                         className="rounded p-0.5 text-[var(--ink-muted)] opacity-0 transition hover:bg-[var(--border-hairline)]/70 hover:text-[var(--ink-primary)] group-hover:opacity-100 disabled:opacity-0"
                       >

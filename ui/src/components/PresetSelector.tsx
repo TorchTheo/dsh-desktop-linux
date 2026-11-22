@@ -40,6 +40,7 @@ export function PresetSelector() {
   const defaultPresetId = useAppStore((s) => s.defaultPresetId)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const sessionPresetById = useAppStore((s) => s.sessionPresetById)
+  const pendingNewSessionPreset = useAppStore((s) => s.pendingNewSessionPreset)
   const workerStatus = useAppStore((s) => s.workerStatus)
   const setSessionPreset = useAppStore((s) => s.setSessionPreset)
   const setDefaultAgentPreset = useAppStore((s) => s.setDefaultAgentPreset)
@@ -68,7 +69,7 @@ export function PresetSelector() {
   if (presets.length === 0) return null
 
   const activePresetId =
-    (activeSessionId ? sessionPresetById[activeSessionId] : undefined) ??
+    (activeSessionId ? sessionPresetById[activeSessionId] : pendingNewSessionPreset ?? undefined) ??
     defaultPresetId ??
     presets[0]?.id ??
     ''

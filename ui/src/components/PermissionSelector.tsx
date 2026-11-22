@@ -23,6 +23,7 @@ export function PermissionSelector() {
   const workerStatus = useAppStore((s) => s.workerStatus)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const telemetryBySession = useAppStore((s) => s.telemetryBySession)
+  const pendingNewSessionPermission = useAppStore((s) => s.pendingNewSessionPermission)
   const setSessionPermission = useAppStore((s) => s.setSessionPermission)
 
   const [open, setOpen] = useState(false)
@@ -50,8 +51,9 @@ export function PermissionSelector() {
   if (workerStatus.state !== 'ready') return null
 
   const currentMode =
-    (activeSessionId ? telemetryBySession[activeSessionId]?.sandboxMode : null) ??
-    'workspace-write'
+    (activeSessionId
+      ? telemetryBySession[activeSessionId]?.sandboxMode
+      : pendingNewSessionPermission) ?? 'workspace-write'
   const currentOption =
     PERMISSION_OPTIONS.find((opt) => opt.mode === currentMode) ?? PERMISSION_OPTIONS[1]
   const isDanger = currentOption.mode === 'danger-full-access'
