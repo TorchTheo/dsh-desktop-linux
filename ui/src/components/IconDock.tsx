@@ -62,14 +62,15 @@ export function IconDock() {
           )}
         </button>
         <div
-          className="mb-2 flex h-7 w-7 items-center justify-center rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)]"
+          className="mb-2 flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg"
           title="DSH 桌面端"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <circle cx="5" cy="5.5" r="2.6" fill="#4D6BFE" />
-            <rect x="9" y="3" width="4.5" height="4.5" fill="#2563EB" />
-            <polygon points="8,9.2 13,13.5 3,13.5" fill="currentColor" />
-          </svg>
+          <img
+            src="/app-icon.png"
+            alt="DSH 桌面端"
+            className="h-8 w-8 object-contain"
+            draggable={false}
+          />
         </div>
 
         <button
