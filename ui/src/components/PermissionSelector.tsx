@@ -74,23 +74,23 @@ export function PermissionSelector() {
           title="切换当前会话权限模式"
           className={`inline-flex h-7 items-center gap-1.5 rounded border px-2 text-xs transition ${
             isDanger
-              ? 'border-[#D13B27]/70 bg-[#D13B27]/10 text-[#D13B27] hover:border-[#D13B27]'
+              ? 'border-[var(--brand-primary)]/70 bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:border-[var(--brand-primary)]'
               : open
-                ? 'border-[#141413] bg-[#FAF9F5] text-[#141413]'
-                : 'border-[#D8D5CB] bg-[#ECEAE2] text-[#141413] hover:border-[#141413]'
+                ? 'border-[var(--ink-primary)] bg-[var(--bg-surface)] text-[var(--ink-primary)]'
+                : 'border-[var(--border-hairline)] bg-[var(--bg-recessed)] text-[var(--ink-primary)] hover:border-[var(--ink-primary)]'
           }`}
         >
           {isDanger ? (
-            <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-[#D13B27]" />
+            <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-[var(--brand-primary)]" />
           ) : (
-            <Shield className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+            <Shield className="h-3.5 w-3.5 shrink-0 text-[var(--ink-secondary)]" />
           )}
           <span>{currentOption.label}</span>
           <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />
         </button>
 
         {open && (
-          <div className="absolute bottom-full left-0 z-40 mb-1.5 w-64 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] py-1">
+          <div className="absolute bottom-full left-0 z-40 mb-1.5 w-64 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1">
             {PERMISSION_OPTIONS.map((opt) => {
               const active = opt.mode === currentOption.mode
               return (
@@ -99,22 +99,22 @@ export function PermissionSelector() {
                   type="button"
                   onClick={() => handleSelect(opt.mode)}
                   className={`flex w-full items-start justify-between gap-2 px-3 py-2 text-left transition ${
-                    active ? 'bg-[#ECEAE2]' : 'hover:bg-[#F4F3EE]'
+                    active ? 'bg-[var(--bg-recessed)]' : 'hover:bg-[var(--bg-canvas)]'
                   }`}
                 >
                   <div className="min-w-0">
                     <div
                       className={`text-xs font-medium ${
-                        opt.danger ? 'text-[#D13B27]' : 'text-[#141413]'
+                        opt.danger ? 'text-[var(--brand-primary)]' : 'text-[var(--ink-primary)]'
                       }`}
                     >
                       {opt.label}
                     </div>
-                    <div className="mt-0.5 text-[10.5px] leading-snug text-[#8A8880]">
+                    <div className="mt-0.5 text-[10.5px] leading-snug text-[var(--ink-muted)]">
                       {opt.desc}
                     </div>
                   </div>
-                  {active && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#D13B27]" />}
+                  {active && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--brand-primary)]" />}
                 </button>
               )
             })}
@@ -123,19 +123,19 @@ export function PermissionSelector() {
       </div>
 
       {confirmDanger && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#141413]/40 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-md overflow-hidden rounded-lg border border-[#D13B27]/60 border-t-[3px] border-t-[#D13B27] bg-[#FAF9F5]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink-primary)]/40 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md overflow-hidden rounded-lg border border-[var(--brand-primary)]/60 border-t-[3px] border-t-[var(--brand-primary)] bg-[var(--bg-surface)]">
             <div className="p-5">
               <div className="flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-[#D13B27]/40 bg-[#D13B27]/10 text-[#D13B27]">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
                   <AlertTriangle className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-[#141413]">确认开启「完全访问」权限？</h3>
-                  <p className="mt-1.5 text-xs leading-relaxed text-[#575652]">
+                  <h3 className="text-sm font-semibold text-[var(--ink-primary)]">确认开启「完全访问」权限？</h3>
+                  <p className="mt-1.5 text-xs leading-relaxed text-[var(--ink-secondary)]">
                     该模式属于高危权限，开启后当前会话的助手将获得以下能力且不再逐次弹窗审批：
                   </p>
-                  <ul className="mt-2.5 list-disc space-y-1 pl-4 text-xs text-[#575652]">
+                  <ul className="mt-2.5 list-disc space-y-1 pl-4 text-xs text-[var(--ink-secondary)]">
                     <li>可直接执行任意本地终端命令（包括删除、安装或网络请求）</li>
                     <li>可读取、修改或覆盖当前工作目录以外的系统与用户文件</li>
                     <li>建议仅在受控项目目录或已做好 Git 备份时开启</li>
@@ -147,7 +147,7 @@ export function PermissionSelector() {
                 <button
                   type="button"
                   onClick={() => setConfirmDanger(false)}
-                  className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-3.5 py-1.5 text-xs font-medium text-[#575652] hover:border-[#141413] hover:text-[#141413]"
+                  className="rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3.5 py-1.5 text-xs font-medium text-[var(--ink-secondary)] hover:border-[var(--ink-primary)] hover:text-[var(--ink-primary)]"
                 >
                   取消
                 </button>
@@ -157,7 +157,7 @@ export function PermissionSelector() {
                     setConfirmDanger(false)
                     void setSessionPermission('danger-full-access')
                   }}
-                  className="rounded bg-[#D13B27] px-3.5 py-1.5 text-xs font-medium text-[#FAF9F5] hover:bg-[#b5301f]"
+                  className="rounded bg-[var(--brand-primary)] px-3.5 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand-hover)]"
                 >
                   我了解风险，开启完全访问
                 </button>

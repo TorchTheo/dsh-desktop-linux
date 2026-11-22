@@ -84,20 +84,20 @@ export function PresetSelector() {
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         title={`Agent 模式：${currentDisplay?.name ?? activePresetId}`}
-        className="inline-flex h-7 max-w-[140px] items-center gap-1 rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2 font-mono-tabular text-[11px] text-[#575652] transition hover:border-[#141413] hover:text-[#141413] disabled:opacity-45"
+        className="inline-flex h-7 max-w-[140px] items-center gap-1 rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2 font-mono-tabular text-[11px] text-[var(--ink-secondary)] transition hover:border-[var(--ink-primary)] hover:text-[var(--ink-primary)] disabled:opacity-45"
       >
-        <Sparkles className="h-3 w-3 shrink-0 text-[#1E4D9B]" />
+        <Sparkles className="h-3 w-3 shrink-0 text-[var(--brand-secondary)]" />
         <span className="truncate">{currentDisplay?.name ?? activePresetId}</span>
-        <ChevronDown className="h-3 w-3 shrink-0 text-[#8A8880]" />
+        <ChevronDown className="h-3 w-3 shrink-0 text-[var(--ink-muted)]" />
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 z-40 mb-1.5 w-76 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#ECEAE2] bg-[#F4F3EE] px-3 py-1.5">
-            <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#575652]">
+        <div className="absolute bottom-full left-0 z-40 mb-1.5 w-76 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-sm">
+          <div className="flex items-center justify-between border-b border-[var(--bg-recessed)] bg-[var(--bg-canvas)] px-3 py-1.5">
+            <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
               Agent 模式 / 预设
             </span>
-            <span className="font-mono-tabular text-[10px] text-[#8A8880]">
+            <span className="font-mono-tabular text-[10px] text-[var(--ink-muted)]">
               共 {presets.length} 项
             </span>
           </div>
@@ -111,7 +111,7 @@ export function PresetSelector() {
                 <li
                   key={preset.id}
                   className={`flex items-start justify-between gap-2 px-2.5 py-2 transition ${
-                    isSelected ? 'bg-[#ECEAE2]/80' : 'hover:bg-[#F4F3EE]'
+                    isSelected ? 'bg-[var(--bg-recessed)]/80' : 'hover:bg-[var(--bg-canvas)]'
                   }`}
                 >
                   <button
@@ -123,21 +123,21 @@ export function PresetSelector() {
                     className="min-w-0 flex-1 text-left"
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-xs font-medium text-[#141413]">
+                      <span className="truncate text-xs font-medium text-[var(--ink-primary)]">
                         {display.name}
                       </span>
                       {isDefault && (
-                        <span className="shrink-0 rounded border border-[#1E4D9B]/30 bg-[#1E4D9B]/8 px-1 py-0.2 font-mono-tabular text-[9px] text-[#1E4D9B]">
+                        <span className="shrink-0 rounded border border-[var(--brand-secondary)]/30 bg-[var(--brand-secondary)]/8 px-1 py-0.2 font-mono-tabular text-[9px] text-[var(--brand-secondary)]">
                           默认
                         </span>
                       )}
-                      {isSelected && <Check className="h-3 w-3 shrink-0 text-[#D13B27]" />}
+                      {isSelected && <Check className="h-3 w-3 shrink-0 text-[var(--brand-primary)]" />}
                     </div>
-                    <div className="font-mono-tabular text-[10px] text-[#8A8880]">
+                    <div className="font-mono-tabular text-[10px] text-[var(--ink-muted)]">
                       {preset.id}
                     </div>
                     {display.description && (
-                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[#575652]">
+                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--ink-secondary)]">
                         {display.description}
                       </p>
                     )}
@@ -151,7 +151,7 @@ export function PresetSelector() {
                         e.stopPropagation()
                         void setDefaultAgentPreset(preset.id)
                       }}
-                      className="mt-0.5 shrink-0 rounded p-1 text-[#8A8880] transition hover:bg-[#E5E2D8] hover:text-[#141413]"
+                      className="mt-0.5 shrink-0 rounded p-1 text-[var(--ink-muted)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]"
                     >
                       <Star className="h-3 w-3" />
                     </button>

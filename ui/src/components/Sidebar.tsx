@@ -177,37 +177,37 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-full min-h-0 w-68 shrink-0 flex-col py-3 pl-3">
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]">
-        <div className="flex items-center justify-between border-b border-[#D8D5CB] px-3.5 py-2.5">
-          <span className="text-xs font-semibold tracking-wide text-[#141413]">工作区与会话</span>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)]">
+        <div className="flex items-center justify-between border-b border-[var(--border-hairline)] px-3.5 py-2.5">
+          <span className="text-xs font-semibold tracking-wide text-[var(--ink-primary)]">工作区与会话</span>
           <button
             type="button"
             onClick={() => void createSession()}
             disabled={workerStatus.state !== 'ready'}
             title="新建会话"
-            className="inline-flex items-center gap-1 rounded border border-[#141413] bg-[#141413] px-2 py-1 text-[11px] font-medium text-[#FAF9F5] transition hover:border-[#D13B27] hover:bg-[#D13B27] disabled:cursor-not-allowed disabled:opacity-35"
+            className="inline-flex items-center gap-1 rounded border border-[var(--ink-primary)] bg-[var(--ink-primary)] px-2 py-1 text-[11px] font-medium text-[var(--bg-surface)] transition hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-35"
           >
             <Plus className="h-3 w-3" />
             新建
           </button>
         </div>
 
-        <div className="border-b border-[#D8D5CB] px-3 py-2.5">
+        <div className="border-b border-[var(--border-hairline)] px-3 py-2.5">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-[#8A8880]" />
+            <Search className="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-[var(--ink-muted)]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="搜索工作区或会话..."
-              className="w-full rounded border border-[#D8D5CB] bg-[#F4F3EE] py-1.5 pl-8 pr-2.5 text-xs text-[#141413] placeholder-[#8A8880] focus:border-[#141413] focus:bg-[#FAF9F5] focus:outline-none"
+              className="w-full rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] py-1.5 pl-8 pr-2.5 text-xs text-[var(--ink-primary)] placeholder-[var(--ink-muted)] focus:border-[var(--ink-primary)] focus:bg-[var(--bg-surface)] focus:outline-none"
             />
           </div>
         </div>
 
         <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2">
           {tree.length === 0 ? (
-            <div className="px-3 py-10 text-center text-xs text-[#8A8880]">
+            <div className="px-3 py-10 text-center text-xs text-[var(--ink-muted)]">
               {searchQuery ? '未找到匹配的会话' : '暂无工作区或会话'}
             </div>
           ) : (
@@ -216,7 +216,7 @@ export function Sidebar() {
                 const isExpanded = searchQuery.trim().length > 0 || !collapsedDirs[node.key]
                 return (
                   <div key={node.key}>
-                    <div className="group flex items-center justify-between gap-1 rounded px-1.5 py-1.5 hover:bg-[#ECEAE2]/70">
+                    <div className="group flex items-center justify-between gap-1 rounded px-1.5 py-1.5 hover:bg-[var(--bg-recessed)]/70">
                       <button
                         type="button"
                         onClick={() => toggleDir(node.key)}
@@ -224,19 +224,19 @@ export function Sidebar() {
                         title={node.path}
                       >
                         {isExpanded ? (
-                          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#8A8880]" />
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)]" />
                         ) : (
-                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#8A8880]" />
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)]" />
                         )}
                         {isExpanded ? (
-                          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-[#1E4D9B]" />
+                          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-[var(--brand-secondary)]" />
                         ) : (
-                          <Folder className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+                          <Folder className="h-3.5 w-3.5 shrink-0 text-[var(--ink-secondary)]" />
                         )}
-                        <span className="truncate text-xs font-semibold text-[#141413]">
+                        <span className="truncate text-xs font-semibold text-[var(--ink-primary)]">
                           {node.title}
                         </span>
-                        <span className="font-mono-tabular shrink-0 text-[10px] text-[#8A8880]">
+                        <span className="font-mono-tabular shrink-0 text-[10px] text-[var(--ink-muted)]">
                           ({node.sessions.length})
                         </span>
                       </button>
@@ -246,16 +246,16 @@ export function Sidebar() {
                         disabled={workerStatus.state !== 'ready'}
                         onClick={() => void createSession(node.path)}
                         title={`在「${node.title}」中新建会话`}
-                        className="rounded p-0.5 text-[#8A8880] opacity-0 transition hover:bg-[#D8D5CB]/70 hover:text-[#141413] group-hover:opacity-100 disabled:opacity-0"
+                        className="rounded p-0.5 text-[var(--ink-muted)] opacity-0 transition hover:bg-[var(--border-hairline)]/70 hover:text-[var(--ink-primary)] group-hover:opacity-100 disabled:opacity-0"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
                     </div>
 
                     {isExpanded && (
-                      <ul className="ml-3.5 mt-0.5 space-y-0.5 border-l border-[#D8D5CB] pl-2">
+                      <ul className="ml-3.5 mt-0.5 space-y-0.5 border-l border-[var(--border-hairline)] pl-2">
                         {node.sessions.length === 0 ? (
-                          <li className="px-2 py-1.5 text-[11px] text-[#8A8880]">暂无会话</li>
+                          <li className="px-2 py-1.5 text-[11px] text-[var(--ink-muted)]">暂无会话</li>
                         ) : (
                           (searchQuery.trim() || expandedAllDirs[node.key] ? node.sessions : node.sessions.slice(0, DEFAULT_VISIBLE)).map((session) => {
                             const active = session.sessionId === activeSessionId
@@ -280,22 +280,22 @@ export function Sidebar() {
                                   }}
                                   className={`relative flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left transition ${
                                     active
-                                      ? 'bg-[#ECEAE2] text-[#141413]'
-                                      : 'text-[#575652] hover:bg-[#F4F3EE] hover:text-[#141413]'
+                                      ? 'bg-[var(--bg-recessed)] text-[var(--ink-primary)]'
+                                      : 'text-[var(--ink-secondary)] hover:bg-[var(--bg-canvas)] hover:text-[var(--ink-primary)]'
                                   }`}
                                 >
                                   {active && (
-                                    <span className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#D13B27]" />
+                                    <span className="absolute left-0 top-1 bottom-1 w-[2px] bg-[var(--brand-primary)]" />
                                   )}
                                   <div className="flex min-w-0 items-center gap-1.5">
                                     {session.status === 'running' || isLoading ? (
-                                      <Loader2 className="h-3 w-3 shrink-0 animate-spin text-[#D13B27]" />
+                                      <Loader2 className="h-3 w-3 shrink-0 animate-spin text-[var(--brand-primary)]" />
                                     ) : session.pinned ? (
-                                      <Pin className="h-3 w-3 shrink-0 text-[#C4881C]" />
+                                      <Pin className="h-3 w-3 shrink-0 text-[var(--status-warn)]" />
                                     ) : null}
                                     <span className="truncate text-xs">{displayTitle}</span>
                                   </div>
-                                  <span className="font-mono-tabular shrink-0 text-[10px] text-[#8A8880]">
+                                  <span className="font-mono-tabular shrink-0 text-[10px] text-[var(--ink-muted)]">
                                     {formatRelativeTime(session.updatedAt)}
                                   </span>
                                 </button>
@@ -313,7 +313,7 @@ export function Sidebar() {
                                   [node.key]: !prev[node.key],
                                 }))
                               }
-                              className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-[11px] text-[#8A8880] transition hover:bg-[#F4F3EE] hover:text-[#141413]"
+                              className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-[11px] text-[var(--ink-muted)] transition hover:bg-[var(--bg-canvas)] hover:text-[var(--ink-primary)]"
                             >
                               <span className="font-mono-tabular font-semibold tracking-widest">...</span>
                               <span>
@@ -334,8 +334,8 @@ export function Sidebar() {
         </div>
 
         {panelSlots.length > 0 && (
-          <div className="shrink-0 border-t border-[#D8D5CB] bg-[#F4F3EE]/70 px-2.5 py-2">
-            <div className="mb-1.5 px-1 font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#8A8880]">
+          <div className="shrink-0 border-t border-[var(--border-hairline)] bg-[var(--bg-canvas)]/70 px-2.5 py-2">
+            <div className="mb-1.5 px-1 font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
               扩展面板
             </div>
             <div className="space-y-1">
@@ -350,8 +350,8 @@ export function Sidebar() {
                     onClick={() => openPluginPanel(panelKey)}
                     className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-medium transition ${
                       active
-                        ? 'bg-[#141413] text-[#FAF9F5]'
-                        : 'text-[#141413] hover:bg-[#ECEAE2]'
+                        ? 'bg-[var(--ink-primary)] text-[var(--bg-surface)]'
+                        : 'text-[var(--ink-primary)] hover:bg-[var(--bg-recessed)]'
                     }`}
                   >
                     <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
@@ -365,12 +365,12 @@ export function Sidebar() {
           </div>
         )}
 
-        <div className="flex items-center justify-between border-t border-[#D8D5CB] bg-[#F4F3EE]/60 px-3 py-2 text-[11px] text-[#8A8880]">
+        <div className="flex items-center justify-between border-t border-[var(--border-hairline)] bg-[var(--bg-canvas)]/60 px-3 py-2 text-[11px] text-[var(--ink-muted)]">
           <button
             type="button"
             onClick={() => setShowArchived(!showArchived)}
             className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition ${
-              showArchived ? 'bg-[#ECEAE2] text-[#141413]' : 'hover:text-[#141413]'
+              showArchived ? 'bg-[var(--bg-recessed)] text-[var(--ink-primary)]' : 'hover:text-[var(--ink-primary)]'
             }`}
           >
             <Archive className="h-3 w-3" />
@@ -384,7 +384,7 @@ export function Sidebar() {
         <div
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onMouseDown={(e) => e.stopPropagation()}
-          className="fixed z-50 w-48 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] py-1 shadow-md"
+          className="fixed z-50 w-48 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1 shadow-md"
         >
           <button
             type="button"
@@ -393,9 +393,9 @@ export function Sidebar() {
               setContextMenu(null)
               void updateSessionMeta(s.sessionId, { pinned: !s.pinned })
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#141413] hover:bg-[#ECEAE2]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-primary)] hover:bg-[var(--bg-recessed)]"
           >
-            <Pin className="h-3.5 w-3.5 text-[#575652]" />
+            <Pin className="h-3.5 w-3.5 text-[var(--ink-secondary)]" />
             {contextMenu.session.pinned ? '取消置顶' : '置顶会话'}
           </button>
 
@@ -408,9 +408,9 @@ export function Sidebar() {
                 s.title === 'New session' || s.title === 'Untitled session' ? '' : s.title
               setRenameTarget({ sessionId: s.sessionId, value: current })
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#141413] hover:bg-[#ECEAE2]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-primary)] hover:bg-[var(--bg-recessed)]"
           >
-            <Pencil className="h-3.5 w-3.5 text-[#575652]" />
+            <Pencil className="h-3.5 w-3.5 text-[var(--ink-secondary)]" />
             重命名会话
           </button>
 
@@ -422,9 +422,9 @@ export function Sidebar() {
               setContextMenu(null)
               void forkSession(s.sessionId)
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#141413] hover:bg-[#ECEAE2] disabled:opacity-45"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-primary)] hover:bg-[var(--bg-recessed)] disabled:opacity-45"
           >
-            <GitFork className="h-3.5 w-3.5 text-[#1E4D9B]" />
+            <GitFork className="h-3.5 w-3.5 text-[var(--brand-secondary)]" />
             分叉会话（Fork）
           </button>
 
@@ -435,13 +435,13 @@ export function Sidebar() {
               setContextMenu(null)
               void updateSessionMeta(s.sessionId, { archived: !s.archived })
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#141413] hover:bg-[#ECEAE2]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-primary)] hover:bg-[var(--bg-recessed)]"
           >
-            <Archive className="h-3.5 w-3.5 text-[#575652]" />
+            <Archive className="h-3.5 w-3.5 text-[var(--ink-secondary)]" />
             {contextMenu.session.archived ? '取消归档' : '归档会话'}
           </button>
 
-          <div className="my-1 border-t border-[#ECEAE2]" />
+          <div className="my-1 border-t border-[var(--bg-recessed)]" />
 
           <button
             type="button"
@@ -450,7 +450,7 @@ export function Sidebar() {
               setContextMenu(null)
               void copyText(id, '会话 ID')
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-secondary)] hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
           >
             <Copy className="h-3.5 w-3.5" />
             复制会话 ID
@@ -463,7 +463,7 @@ export function Sidebar() {
               setContextMenu(null)
               void copyText(cwd, '工作区路径')
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-secondary)] hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
           >
             <FolderOpen className="h-3.5 w-3.5" />
             复制工作区路径
@@ -473,7 +473,7 @@ export function Sidebar() {
 
       {renameTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#141413]/35 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink-primary)]/35 p-4 backdrop-blur-[2px]"
           onMouseDown={() => setRenameTarget(null)}
         >
           <form
@@ -486,11 +486,11 @@ export function Sidebar() {
               setRenameTarget(null)
               void updateSessionMeta(id, { title: trimmed })
             }}
-            className="w-full max-w-sm rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] p-4 shadow-md"
+            className="w-full max-w-sm rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] p-4 shadow-md"
           >
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 bg-[#D13B27]" />
-              <h3 className="text-xs font-semibold tracking-wide text-[#141413]">重命名会话</h3>
+              <span className="h-2 w-2 bg-[var(--brand-primary)]" />
+              <h3 className="text-xs font-semibold tracking-wide text-[var(--ink-primary)]">重命名会话</h3>
             </div>
             <input
               type="text"
@@ -498,20 +498,20 @@ export function Sidebar() {
               value={renameTarget.value}
               onChange={(e) => setRenameTarget({ ...renameTarget, value: e.target.value })}
               placeholder="输入新的会话标题"
-              className="mt-3 w-full rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2.5 py-1.5 text-xs text-[#141413] placeholder-[#8A8880] focus:border-[#141413] focus:bg-[#FAF9F5] focus:outline-none"
+              className="mt-3 w-full rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2.5 py-1.5 text-xs text-[var(--ink-primary)] placeholder-[var(--ink-muted)] focus:border-[var(--ink-primary)] focus:bg-[var(--bg-surface)] focus:outline-none"
             />
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setRenameTarget(null)}
-                className="rounded border border-[#D8D5CB] bg-[#FAF9F5] px-3 py-1 text-xs text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+                className="rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1 text-xs text-[var(--ink-secondary)] hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
               >
                 取消
               </button>
               <button
                 type="submit"
                 disabled={!renameTarget.value.trim()}
-                className="rounded bg-[#141413] px-3 py-1 text-xs font-medium text-[#FAF9F5] hover:bg-[#2a2a28] disabled:opacity-45"
+                className="rounded bg-[var(--ink-primary)] px-3 py-1 text-xs font-medium text-[var(--bg-surface)] hover:bg-[var(--ink-hover)] disabled:opacity-45"
               >
                 保存
               </button>

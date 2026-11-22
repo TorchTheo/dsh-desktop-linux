@@ -2,12 +2,15 @@ import {
   Activity,
   History,
   MessageSquare,
+  Moon,
   PanelLeft,
   Puzzle,
   RefreshCw,
   Settings,
+  Sun,
 } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
+import { useThemeStore } from '../store/useTheme'
 
 export function IconDock() {
   const activeView = useAppStore((s) => s.activeView)
@@ -19,15 +22,17 @@ export function IconDock() {
   const restartWorker = useAppStore((s) => s.restartWorker)
   const startWorker = useAppStore((s) => s.startWorker)
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen)
+  const theme = useThemeStore((s) => s.theme)
+  const toggleTheme = useThemeStore((s) => s.toggleTheme)
 
   const statusColor =
     workerStatus.state === 'ready'
-      ? 'bg-[#246A4D]'
+      ? 'bg-[var(--status-ok)]'
       : workerStatus.state === 'starting'
-        ? 'bg-[#C4881C] animate-pulse'
+        ? 'bg-[var(--status-warn)] animate-pulse'
         : workerStatus.state === 'error'
-          ? 'bg-[#D13B27]'
-          : 'bg-[#8A8880]'
+          ? 'bg-[var(--brand-primary)]'
+          : 'bg-[var(--ink-muted)]'
 
   const statusTitle =
     workerStatus.state === 'ready'
@@ -41,17 +46,29 @@ export function IconDock() {
   return (
     <nav
       aria-label="主导航"
-      className="flex h-full w-12 shrink-0 flex-col items-center justify-between border-r border-[#D8D5CB] bg-[#ECEAE2] py-3"
+      className="flex h-full w-12 shrink-0 flex-col items-center justify-between border-r border-[var(--border-hairline)] bg-[var(--bg-recessed)] py-3"
     >
       <div className="flex flex-col items-center gap-2">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? '切换至 DeepSeek 浅色蓝白主题' : '切换至 DeepSeek 深色主题'}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--ink-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]"
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-4 w-4 stroke-[1.75] text-[var(--status-warn)]" />
+          ) : (
+            <Moon className="h-4 w-4 stroke-[1.75] text-[var(--brand-primary)]" />
+          )}
+        </button>
         <div
-          className="mb-2 flex h-7 w-7 items-center justify-center rounded border border-[#D8D5CB] bg-[#FAF9F5]"
+          className="mb-2 flex h-7 w-7 items-center justify-center rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)]"
           title="DSH 桌面端"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <circle cx="5" cy="5.5" r="2.6" fill="#D13B27" />
-            <rect x="9" y="3" width="4.5" height="4.5" fill="#1E4D9B" />
-            <polygon points="8,9.2 13,13.5 3,13.5" fill="#141413" />
+            <circle cx="5" cy="5.5" r="2.6" fill="#4D6BFE" />
+            <rect x="9" y="3" width="4.5" height="4.5" fill="#2563EB" />
+            <polygon points="8,9.2 13,13.5 3,13.5" fill="currentColor" />
           </svg>
         </div>
 
@@ -61,12 +78,12 @@ export function IconDock() {
           title="对话视图（Ctrl+1）"
           className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
             activeView === 'studio'
-              ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
-              : 'text-[#575652] hover:bg-[#E5E2D8] hover:text-[#141413]'
+              ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+              : 'text-[var(--ink-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]'
           }`}
         >
           {activeView === 'studio' && (
-            <span className="absolute -left-1.5 h-3.5 w-1 bg-[#D13B27]" />
+            <span className="absolute -left-1.5 h-3.5 w-1 bg-[var(--brand-primary)]" />
           )}
           <MessageSquare className="h-4 w-4 stroke-[1.75]" />
         </button>
@@ -77,12 +94,12 @@ export function IconDock() {
           title="Agent 轨迹视图（Ctrl+2）"
           className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
             activeView === 'trajectory'
-              ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
-              : 'text-[#575652] hover:bg-[#E5E2D8] hover:text-[#141413]'
+              ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+              : 'text-[var(--ink-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]'
           }`}
         >
           {activeView === 'trajectory' && (
-            <span className="absolute -left-1.5 h-3.5 w-1 bg-[#D13B27]" />
+            <span className="absolute -left-1.5 h-3.5 w-1 bg-[var(--brand-primary)]" />
           )}
           <Activity className="h-4 w-4 stroke-[1.75]" />
         </button>
@@ -93,17 +110,17 @@ export function IconDock() {
           title="插件与扩展（Ctrl+3）"
           className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
             activeView === 'plugins'
-              ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
-              : 'text-[#575652] hover:bg-[#E5E2D8] hover:text-[#141413]'
+              ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+              : 'text-[var(--ink-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]'
           }`}
         >
           {activeView === 'plugins' && (
-            <span className="absolute -left-1.5 h-3.5 w-1 bg-[#D13B27]" />
+            <span className="absolute -left-1.5 h-3.5 w-1 bg-[var(--brand-primary)]" />
           )}
           <Puzzle className="h-4 w-4 stroke-[1.75]" />
         </button>
 
-        <div className="my-1 h-px w-5 bg-[#D8D5CB]" />
+        <div className="my-1 h-px w-5 bg-[var(--border-hairline)]" />
 
         <button
           type="button"
@@ -111,8 +128,8 @@ export function IconDock() {
           title={sidebarOpen ? '收起工作区侧栏（Ctrl+B）' : '展开工作区侧栏（Ctrl+B）'}
           className={`flex h-9 w-9 items-center justify-center rounded-md transition ${
             sidebarOpen
-              ? 'bg-[#E5E2D8] text-[#141413]'
-              : 'text-[#575652] hover:bg-[#E5E2D8] hover:text-[#141413]'
+              ? 'bg-[var(--bg-hover)] text-[var(--ink-primary)]'
+              : 'text-[var(--ink-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]'
           }`}
         >
           <PanelLeft className="h-4 w-4 stroke-[1.75]" />
@@ -122,7 +139,7 @@ export function IconDock() {
           type="button"
           onClick={() => void refreshSessions()}
           title="刷新本地历史会话"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-[#575652] transition hover:bg-[#E5E2D8] hover:text-[#141413]"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--ink-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]"
         >
           <History className="h-4 w-4 stroke-[1.75]" />
         </button>
@@ -135,7 +152,7 @@ export function IconDock() {
             void (workerStatus.state === 'ready' ? restartWorker() : startWorker())
           }
           title={workerStatus.state === 'ready' ? '重启后端服务' : '启动后端服务'}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-[#575652] transition hover:bg-[#E5E2D8] hover:text-[#141413]"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--ink-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]"
         >
           <RefreshCw className="h-3.5 w-3.5 stroke-[1.75]" />
         </button>
@@ -144,7 +161,7 @@ export function IconDock() {
           type="button"
           onClick={() => setSettingsOpen(true)}
           title="设置"
-          className="flex h-8 w-8 items-center justify-center rounded-md text-[#575652] transition hover:bg-[#E5E2D8] hover:text-[#141413]"
+          className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--ink-secondary)] transition hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]"
         >
           <Settings className="h-4 w-4 stroke-[1.75]" />
         </button>

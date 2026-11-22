@@ -9,28 +9,28 @@ export function ApprovalCard({ request }: Props) {
   const respondApproval = useAppStore((s) => s.respondApproval)
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#D8D5CB] border-l-[3px] border-l-[#C4881C] bg-[#FAF9F5]">
+    <div className="overflow-hidden rounded-lg border border-[var(--border-hairline)] border-l-[3px] border-l-[var(--status-warn)] bg-[var(--bg-surface)]">
       <div className="p-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 bg-[#C4881C]" />
-            <span className="font-mono-tabular text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8E6210]">
+            <span className="h-2 w-2 bg-[var(--status-warn)]" />
+            <span className="font-mono-tabular text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--status-warn-text)]">
               需要执行审批
             </span>
           </div>
-          <code className="font-mono-tabular rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 py-0.5 text-[11px] font-medium text-[#141413]">
+          <code className="font-mono-tabular rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] px-2 py-0.5 text-[11px] font-medium text-[var(--ink-primary)]">
             {request.toolName}
           </code>
         </div>
 
         {request.reason && (
-          <pre className="font-mono-tabular mt-3 max-h-40 overflow-auto rounded border border-[#D8D5CB] bg-[#ECEAE2] px-3 py-2 text-xs whitespace-pre-wrap text-[#141413]">
+          <pre className="font-mono-tabular mt-3 max-h-40 overflow-auto rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] px-3 py-2 text-xs whitespace-pre-wrap text-[var(--ink-primary)]">
             {request.reason}
           </pre>
         )}
 
         {request.callId && (
-          <div className="font-mono-tabular mt-2 text-[10px] text-[#8A8880]">
+          <div className="font-mono-tabular mt-2 text-[10px] text-[var(--ink-muted)]">
             调用编号 · {request.callId}
           </div>
         )}
@@ -39,21 +39,21 @@ export function ApprovalCard({ request }: Props) {
           <button
             type="button"
             onClick={() => void respondApproval(request.requestId, 'allowed-once')}
-            className="rounded bg-[#246A4D] px-3.5 py-1.5 text-xs font-medium text-[#FAF9F5] transition hover:bg-[#1c543d]"
+            className="rounded bg-[var(--status-ok)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-surface)] transition hover:bg-[#1c543d]"
           >
             允许一次
           </button>
           <button
             type="button"
             onClick={() => void respondApproval(request.requestId, 'rejected')}
-            className="rounded border border-[#D13B27] bg-transparent px-3.5 py-1.5 text-xs font-medium text-[#D13B27] transition hover:bg-[#D13B27] hover:text-[#FAF9F5]"
+            className="rounded border border-[var(--brand-primary)] bg-transparent px-3.5 py-1.5 text-xs font-medium text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary)] hover:text-white"
           >
             拒绝
           </button>
           <button
             type="button"
             onClick={() => void respondApproval(request.requestId, 'cancelled')}
-            className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-3 py-1.5 text-xs font-medium text-[#575652] transition hover:border-[#141413] hover:text-[#141413]"
+            className="rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-1.5 text-xs font-medium text-[var(--ink-secondary)] transition hover:border-[var(--ink-primary)] hover:text-[var(--ink-primary)]"
           >
             取消
           </button>

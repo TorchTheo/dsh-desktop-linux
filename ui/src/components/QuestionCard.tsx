@@ -75,11 +75,11 @@ export function QuestionCard({ request }: Props) {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[#D8D5CB] border-l-[3px] border-l-[#1E4D9B] bg-[#FAF9F5]">
+    <div className="overflow-hidden rounded-lg border border-[var(--border-hairline)] border-l-[3px] border-l-[var(--brand-secondary)] bg-[var(--bg-surface)]">
       <div className="space-y-4 p-4">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-[#1E4D9B]" />
-          <span className="font-mono-tabular text-[11px] font-semibold uppercase tracking-[0.1em] text-[#1E4D9B]">
+          <span className="h-2 w-2 rounded-full bg-[var(--brand-secondary)]" />
+          <span className="font-mono-tabular text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-secondary)]">
             助手请求确认
           </span>
         </div>
@@ -90,11 +90,11 @@ export function QuestionCard({ request }: Props) {
           return (
             <div key={qId} className="space-y-2.5">
               {item.header && (
-                <div className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[#8A8880]">
+                <div className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
                   {item.header}
                 </div>
               )}
-              <p className="text-sm font-medium leading-relaxed text-[#141413]">{item.question}</p>
+              <p className="text-sm font-medium leading-relaxed text-[var(--ink-primary)]">{item.question}</p>
 
               {item.options && item.options.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -108,15 +108,15 @@ export function QuestionCard({ request }: Props) {
                         onClick={() => toggleOption(qId, val, Boolean(item.multiSelect))}
                         className={`rounded border px-3 py-1.5 text-left text-xs transition ${
                           active
-                            ? 'border-[#1E4D9B] bg-[#1E4D9B] text-[#FAF9F5]'
-                            : 'border-[#D8D5CB] bg-[#F4F3EE] text-[#141413] hover:border-[#1E4D9B]'
+                            ? 'border-[var(--brand-secondary)] bg-[var(--brand-secondary)] text-white'
+                            : 'border-[var(--border-hairline)] bg-[var(--bg-canvas)] text-[var(--ink-primary)] hover:border-[var(--brand-secondary)]'
                         }`}
                       >
                         <div className="font-medium">{opt.label}</div>
                         {opt.description && (
                           <div
                             className={`mt-0.5 text-[11px] ${
-                              active ? 'text-[#FAF9F5]/80' : 'text-[#575652]'
+                              active ? 'text-[var(--bg-surface)]/80' : 'text-[var(--ink-secondary)]'
                             }`}
                           >
                             {opt.description}
@@ -133,7 +133,7 @@ export function QuestionCard({ request }: Props) {
                 value={freeText[qId] ?? ''}
                 onChange={(e) => setFreeText((prev) => ({ ...prev, [qId]: e.target.value }))}
                 placeholder={item.options?.length ? '或输入自定义补充...' : '请输入回复...'}
-                className="w-full rounded border border-[#D8D5CB] bg-[#F4F3EE] px-3 py-1.5 text-xs text-[#141413] placeholder-[#8A8880] focus:border-[#1E4D9B] focus:bg-[#FAF9F5] focus:outline-none"
+                className="w-full rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-1.5 text-xs text-[var(--ink-primary)] placeholder-[var(--ink-muted)] focus:border-[var(--brand-secondary)] focus:bg-[var(--bg-surface)] focus:outline-none"
               />
             </div>
           )
@@ -143,14 +143,14 @@ export function QuestionCard({ request }: Props) {
           <button
             type="button"
             onClick={handleSubmit}
-            className="rounded bg-[#1E4D9B] px-3.5 py-1.5 text-xs font-medium text-[#FAF9F5] transition hover:bg-[#173d7c]"
+            className="rounded bg-[var(--brand-secondary)] px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-[var(--brand-secondary-hover)]"
           >
             提交回答
           </button>
           <button
             type="button"
             onClick={() => void respondUserQuestion(request.requestId, { cancelled: true })}
-            className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-3 py-1.5 text-xs font-medium text-[#575652] transition hover:border-[#141413] hover:text-[#141413]"
+            className="rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-1.5 text-xs font-medium text-[var(--ink-secondary)] transition hover:border-[var(--ink-primary)] hover:text-[var(--ink-primary)]"
           >
             取消
           </button>

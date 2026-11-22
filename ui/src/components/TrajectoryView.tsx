@@ -286,25 +286,25 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
 function StepGlyph({ step }: { step: TraceStep }) {
   switch (step.kind) {
     case 'thinking':
-      return <span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-[#1E4D9B] bg-[#FAF9F5]" />
+      return <span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-[var(--brand-secondary)] bg-[var(--bg-surface)]" />
     case 'tool':
       return (
         <span
           className={`h-2.5 w-2.5 ${
             step.status === 'error'
-              ? 'bg-[#D13B27]'
+              ? 'bg-[var(--brand-primary)]'
               : step.status === 'ok'
-                ? 'bg-[#C4881C]'
-                : 'bg-[#C4881C] animate-pulse'
+                ? 'bg-[var(--status-warn)]'
+                : 'bg-[var(--status-warn)] animate-pulse'
           }`}
         />
       )
     case 'subagent':
-      return <span className="h-2.5 w-2.5 rotate-45 bg-[#575652]" />
+      return <span className="h-2.5 w-2.5 rotate-45 bg-[var(--ink-secondary)]" />
     case 'error':
-      return <span className="h-2.5 w-2.5 bg-[#D13B27]" />
+      return <span className="h-2.5 w-2.5 bg-[var(--brand-primary)]" />
     case 'response':
-      return <span className="h-2.5 w-2.5 rounded-full bg-[#246A4D]" />
+      return <span className="h-2.5 w-2.5 rounded-full bg-[var(--status-ok)]" />
   }
 }
 
@@ -396,8 +396,8 @@ export function TrajectoryView() {
     status === 'ok' ? '成功' : status === 'error' ? '失败' : status === 'running' ? '执行中' : ''
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#F4F3EE]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D8D5CB] bg-[#FAF9F5]/85 px-5 py-2">
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-canvas)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-hairline)] bg-[var(--bg-surface)]/85 px-5 py-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {filterTabs.map((tab) => {
             const active = filter === tab.id
@@ -408,12 +408,12 @@ export function TrajectoryView() {
                 onClick={() => setFilter(tab.id)}
                 className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition ${
                   active
-                    ? 'bg-[#141413] text-[#FAF9F5]'
-                    : 'bg-[#ECEAE2] text-[#575652] hover:bg-[#E5E2D8] hover:text-[#141413]'
+                    ? 'bg-[var(--ink-primary)] text-[var(--bg-surface)]'
+                    : 'bg-[var(--bg-recessed)] text-[var(--ink-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]'
                 }`}
               >
                 <span>{tab.label}</span>
-                <span className={`font-mono-tabular ${active ? 'text-[#FAF9F5]/75' : 'text-[#8A8880]'}`}>
+                <span className={`font-mono-tabular ${active ? 'text-[var(--bg-surface)]/75' : 'text-[var(--ink-muted)]'}`}>
                   {tab.count}
                 </span>
               </button>
@@ -421,7 +421,7 @@ export function TrajectoryView() {
           })}
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-[#575652]">
+        <div className="flex items-center gap-3 text-xs text-[var(--ink-secondary)]">
           <span className="font-mono-tabular">
             共 {allTurns.length} 回合 · {counts.tool} 次工具 · {counts.error} 个错误
           </span>
@@ -430,14 +430,14 @@ export function TrajectoryView() {
               <button
                 type="button"
                 onClick={() => toggleAllTurns(false)}
-                className="rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2 py-0.5 text-[11px] hover:border-[#141413] hover:text-[#141413]"
+                className="rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2 py-0.5 text-[11px] hover:border-[var(--ink-primary)] hover:text-[var(--ink-primary)]"
               >
                 全部展开
               </button>
               <button
                 type="button"
                 onClick={() => toggleAllTurns(true)}
-                className="rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2 py-0.5 text-[11px] hover:border-[#141413] hover:text-[#141413]"
+                className="rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2 py-0.5 text-[11px] hover:border-[var(--ink-primary)] hover:text-[var(--ink-primary)]"
               >
                 全部折叠
               </button>
@@ -448,10 +448,10 @@ export function TrajectoryView() {
 
       {/* 顶层回合概览流水线（宏观视角，点击可展开并定位到该回合） */}
       {allTurns.length > 0 && (
-        <div className="border-b border-[#D8D5CB] bg-[#F4F3EE] px-5 py-2.5">
-          <div className="mb-1.5 flex items-center justify-between text-[11px] text-[#575652]">
-            <span className="font-semibold text-[#141413]">回合概览流水线</span>
-            <span className="font-mono-tabular text-[#8A8880]">
+        <div className="border-b border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-5 py-2.5">
+          <div className="mb-1.5 flex items-center justify-between text-[11px] text-[var(--ink-secondary)]">
+            <span className="font-semibold text-[var(--ink-primary)]">回合概览流水线</span>
+            <span className="font-mono-tabular text-[var(--ink-muted)]">
               共 {allTurns.length} 个回合 · 点击色块展开对应回合
             </span>
           </div>
@@ -460,10 +460,10 @@ export function TrajectoryView() {
               const pct = Math.max(6, (turn.totalDurationMs / sessionTotalTurnMs) * 100)
               const isExpanded = Boolean(expandedTurns[turn.id])
               const barBg = turn.hasError
-                ? 'bg-[#D13B27]/15 border-[#D13B27]/60 text-[#8f2214]'
+                ? 'bg-[var(--brand-primary)]/15 border-[var(--brand-primary)]/60 text-[var(--status-danger-text)]'
                 : isExpanded
-                  ? 'bg-[#141413] border-[#141413] text-[#FAF9F5]'
-                  : 'bg-[#FAF9F5] border-[#D8D5CB] text-[#141413] hover:border-[#1E4D9B]'
+                  ? 'bg-[var(--ink-primary)] border-[var(--ink-primary)] text-[var(--bg-surface)]'
+                  : 'bg-[var(--bg-surface)] border-[var(--border-hairline)] text-[var(--ink-primary)] hover:border-[var(--brand-secondary)]'
               return (
                 <button
                   key={turn.id}
@@ -491,29 +491,29 @@ export function TrajectoryView() {
 
       {/* 全局流水线耗时构成条 */}
       {allSteps.length > 0 && (
-        <div className="border-b border-[#D8D5CB] bg-[#FAF9F5] px-5 py-2.5">
+        <div className="border-b border-[var(--border-hairline)] bg-[var(--bg-surface)] px-5 py-2.5">
           <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-            <div className="flex flex-wrap items-center gap-4 text-[#575652]">
+            <div className="flex flex-wrap items-center gap-4 text-[var(--ink-secondary)]">
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-[#1E4D9B]" />
+                <span className="h-2 w-2 rounded-full bg-[var(--brand-secondary)]" />
                 思考 {formatMs(durationSummary.thinking)}（{Math.round((durationSummary.thinking / durationSummary.total) * 100)}%）
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 bg-[#C4881C]" />
+                <span className="h-2 w-2 bg-[var(--status-warn)]" />
                 工具调用 {formatMs(durationSummary.tool)}（{Math.round((durationSummary.tool / durationSummary.total) * 100)}%）
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-[#246A4D]" />
+                <span className="h-2 w-2 rounded-full bg-[var(--status-ok)]" />
                 回复 {formatMs(durationSummary.response)}（{Math.round((durationSummary.response / durationSummary.total) * 100)}%）
               </span>
               {durationSummary.subagent > 0 && (
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rotate-45 bg-[#575652]" />
+                  <span className="h-2 w-2 rotate-45 bg-[var(--ink-secondary)]" />
                   子代理 {formatMs(durationSummary.subagent)}
                 </span>
               )}
             </div>
-            <span className="font-mono-tabular text-[#8A8880]">
+            <span className="font-mono-tabular text-[var(--ink-muted)]">
               总耗时估算 {formatMs(durationSummary.total)}
             </span>
           </div>
@@ -530,17 +530,17 @@ export function TrajectoryView() {
               const pct = Math.round((lane.ms / durationSummary.total) * 100)
               return (
                 <div key={lane.label} className="grid grid-cols-[72px_1fr_84px] items-center gap-2 text-[11px]">
-                  <span className="flex items-center gap-1.5 text-[#575652]">
+                  <span className="flex items-center gap-1.5 text-[var(--ink-secondary)]">
                     <span className="h-2 w-2 shrink-0 rounded-xs" style={{ backgroundColor: lane.color }} />
                     {lane.label}
                   </span>
-                  <div className="h-2 w-full overflow-hidden rounded-sm bg-[#ECEAE2]">
+                  <div className="h-2 w-full overflow-hidden rounded-sm bg-[var(--bg-recessed)]">
                     <div
                       style={{ width: `${Math.max(lane.ms > 0 ? 2 : 0, pct)}%`, backgroundColor: lane.color }}
                       className="h-full rounded-sm"
                     />
                   </div>
-                  <span className="font-mono-tabular text-right text-[10px] text-[#575652]">
+                  <span className="font-mono-tabular text-right text-[10px] text-[var(--ink-secondary)]">
                     {formatMs(lane.ms)} · {pct}%
                   </span>
                 </div>
@@ -552,9 +552,9 @@ export function TrajectoryView() {
 
       {filteredTurns.length === 0 ? (
         <div className="bauhaus-dot-grid flex flex-1 flex-col items-center justify-center px-6 text-center">
-          <div className="rounded-lg border border-[#D8D5CB] bg-[#FAF9F5] px-8 py-6">
-            <div className="text-sm font-semibold text-[#141413]">暂无执行轨迹</div>
-            <p className="mt-1.5 text-xs text-[#8A8880]">
+          <div className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-8 py-6">
+            <div className="text-sm font-semibold text-[var(--ink-primary)]">暂无执行轨迹</div>
+            <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
               当前会话尚无匹配的执行步骤，请先在「对话」视图发送指令。
             </p>
           </div>
@@ -569,28 +569,28 @@ export function TrajectoryView() {
                 <section
                   id={`trace-${turn.id}`}
                   key={turn.id}
-                  className="overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]"
+                  className="overflow-hidden rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)]"
                 >
                   <button
                     type="button"
                     onClick={() =>
                       setExpandedTurns((prev) => ({ ...prev, [turn.id]: !prev[turn.id] }))
                     }
-                    className="flex w-full flex-col gap-2 bg-[#ECEAE2]/55 px-3.5 py-2.5 text-left transition hover:bg-[#ECEAE2]"
+                    className="flex w-full flex-col gap-2 bg-[var(--bg-recessed)]/55 px-3.5 py-2.5 text-left transition hover:bg-[var(--bg-recessed)]"
                   >
                     <div className="flex w-full items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-2">
                         {collapsed ? (
-                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#575652]" />
+                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-secondary)]" />
                         ) : (
-                          <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-[#575652]" />
+                          <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-secondary)]" />
                         )}
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono-tabular rounded bg-[#141413] px-1.5 py-0.5 text-[10px] font-semibold text-[#FAF9F5]">
+                            <span className="font-mono-tabular rounded bg-[var(--ink-primary)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--bg-surface)]">
                               第 {String(turn.turnNumber).padStart(2, '0')} 回合
                             </span>
-                            <span className="truncate text-xs font-semibold text-[#141413]">
+                            <span className="truncate text-xs font-semibold text-[var(--ink-primary)]">
                               {turn.promptPreview}
                             </span>
                           </div>
@@ -599,7 +599,7 @@ export function TrajectoryView() {
                               {turn.activityCounts.map(([cat, cnt]) => (
                                 <span
                                   key={cat}
-                                  className="font-mono-tabular rounded border border-[#D8D5CB] bg-[#FAF9F5] px-1.5 py-0.5 text-[10px] text-[#575652]"
+                                  className="font-mono-tabular rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[10px] text-[var(--ink-secondary)]"
                                 >
                                   {cat} ×{cnt}
                                 </span>
@@ -609,16 +609,16 @@ export function TrajectoryView() {
                         </div>
                       </div>
 
-                      <div className="font-mono-tabular shrink-0 text-right text-[10px] text-[#8A8880]">
+                      <div className="font-mono-tabular shrink-0 text-right text-[10px] text-[var(--ink-muted)]">
                         <div>{formatClock(turn.timestamp)}</div>
-                        <div className="mt-0.5 font-semibold text-[#141413]">
+                        <div className="mt-0.5 font-semibold text-[var(--ink-primary)]">
                           {formatMs(turnTotal)}
                         </div>
                       </div>
                     </div>
 
                     {turn.steps.length > 0 && (
-                      <div className="mt-1 space-y-1 border-t border-[#D8D5CB]/70 pt-2">
+                      <div className="mt-1 space-y-1 border-t border-[var(--border-hairline)]/70 pt-2">
                         {turn.steps.map((step) => {
                           const leftPct = Math.min(92, (step.offsetMs / turnTotal) * 100)
                           const widthPct = Math.max(
@@ -630,14 +630,14 @@ export function TrajectoryView() {
                               key={step.id}
                               className="grid grid-cols-[112px_1fr_56px] items-center gap-2 text-[10px]"
                             >
-                              <span className="flex min-w-0 items-center gap-1.5 text-[#575652]">
+                              <span className="flex min-w-0 items-center gap-1.5 text-[var(--ink-secondary)]">
                                 <span
                                   className="h-1.5 w-1.5 shrink-0 rounded-xs"
                                   style={{ backgroundColor: stepBarColor(step) }}
                                 />
                                 <span className="truncate">{step.title}</span>
                               </span>
-                              <div className="relative h-1.5 w-full overflow-hidden rounded-sm bg-[#D8D5CB]/65">
+                              <div className="relative h-1.5 w-full overflow-hidden rounded-sm bg-[var(--border-hairline)]/65">
                                 <div
                                   style={{
                                     left: `${leftPct}%`,
@@ -647,7 +647,7 @@ export function TrajectoryView() {
                                   className="absolute top-0 bottom-0 rounded-sm"
                                 />
                               </div>
-                              <span className="font-mono-tabular text-right text-[#575652]">
+                              <span className="font-mono-tabular text-right text-[var(--ink-secondary)]">
                                 {formatMs(step.durationMs)}
                               </span>
                             </div>
@@ -658,7 +658,7 @@ export function TrajectoryView() {
                   </button>
 
                   {!collapsed && (
-                    <div className="border-t border-[#D8D5CB] bg-[#F4F3EE]/50 px-3.5 py-2.5">
+                    <div className="border-t border-[var(--border-hairline)] bg-[var(--bg-canvas)]/50 px-3.5 py-2.5">
                       <ul className="space-y-1.5">
                         {turn.steps.map((step) => {
                           const selected = selectedStep?.id === step.id
@@ -676,39 +676,39 @@ export function TrajectoryView() {
                                 onClick={() => setSelectedStepId(step.id)}
                                 className={`flex w-full flex-col gap-1.5 rounded border px-3 py-2 text-left transition ${
                                   selected
-                                    ? 'border-[#1E4D9B] border-l-[3px] bg-[#FAF9F5]'
-                                    : 'border-[#D8D5CB] bg-[#FAF9F5]/80 hover:border-[#8A8880] hover:bg-[#FAF9F5]'
+                                    ? 'border-[var(--brand-secondary)] border-l-[3px] bg-[var(--bg-surface)]'
+                                    : 'border-[var(--border-hairline)] bg-[var(--bg-surface)]/80 hover:border-[var(--ink-muted)] hover:bg-[var(--bg-surface)]'
                                 }`}
                               >
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex min-w-0 items-center gap-2">
                                     <StepGlyph step={step} />
-                                    <span className="font-mono-tabular shrink-0 text-[10px] font-semibold text-[#8A8880]">
+                                    <span className="font-mono-tabular shrink-0 text-[10px] font-semibold text-[var(--ink-muted)]">
                                       {step.stepLabel}
                                     </span>
-                                    <span className="truncate text-xs font-semibold text-[#141413]">
+                                    <span className="truncate text-xs font-semibold text-[var(--ink-primary)]">
                                       {step.title}
                                     </span>
                                     {step.status && (
                                       <span
                                         className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
                                           step.status === 'error'
-                                            ? 'bg-[#D13B27]/12 text-[#D13B27]'
+                                            ? 'bg-[var(--brand-primary)]/12 text-[var(--brand-primary)]'
                                             : step.status === 'ok'
-                                              ? 'bg-[#246A4D]/12 text-[#246A4D]'
-                                              : 'bg-[#C4881C]/15 text-[#8E6210]'
+                                              ? 'bg-[var(--status-ok)]/12 text-[var(--status-ok)]'
+                                              : 'bg-[var(--status-warn)]/15 text-[var(--status-warn-text)]'
                                         }`}
                                       >
                                         {statusText(step.status)}
                                       </span>
                                     )}
                                   </div>
-                                  <span className="font-mono-tabular shrink-0 text-[10px] text-[#575652]">
+                                  <span className="font-mono-tabular shrink-0 text-[10px] text-[var(--ink-secondary)]">
                                     {formatMs(step.durationMs)} · {sharePct}%
                                   </span>
                                 </div>
 
-                                <div className="relative h-2 w-full overflow-hidden rounded-sm bg-[#ECEAE2]">
+                                <div className="relative h-2 w-full overflow-hidden rounded-sm bg-[var(--bg-recessed)]">
                                   <div
                                     style={{
                                       left: `${leftPct}%`,
@@ -719,7 +719,7 @@ export function TrajectoryView() {
                                   />
                                 </div>
 
-                                <p className="truncate text-[11px] text-[#575652]">
+                                <p className="truncate text-[11px] text-[var(--ink-secondary)]">
                                   {step.summary}
                                 </p>
                               </button>
@@ -734,43 +734,43 @@ export function TrajectoryView() {
             })}
           </div>
 
-          <div className="flex min-w-0 flex-[2] flex-col overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]">
+          <div className="flex min-w-0 flex-[2] flex-col overflow-hidden rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)]">
             {selectedStep ? (
               <>
-                <div className="flex items-center justify-between border-b border-[#D8D5CB] bg-[#F4F3EE]/70 px-4 py-3">
+                <div className="flex items-center justify-between border-b border-[var(--border-hairline)] bg-[var(--bg-canvas)]/70 px-4 py-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold text-[#1E4D9B]">
+                    <div className="text-[11px] font-semibold text-[var(--brand-secondary)]">
                       {selectedStep.stepLabel} · {selectedStep.category} · {formatMs(selectedStep.durationMs)}
                     </div>
-                    <h3 className="truncate text-sm font-semibold text-[#141413]">
+                    <h3 className="truncate text-sm font-semibold text-[var(--ink-primary)]">
                       {selectedStep.title}
                     </h3>
                   </div>
-                  <span className="font-mono-tabular text-[11px] text-[#8A8880]">
+                  <span className="font-mono-tabular text-[11px] text-[var(--ink-muted)]">
                     {formatClock(selectedStep.timestamp)}
                   </span>
                 </div>
 
                 <div className="flex-1 space-y-4 overflow-y-auto p-4 text-xs">
                   {selectedStep.callId && (
-                    <div className="font-mono-tabular flex items-center justify-between rounded border border-[#D8D5CB] bg-[#F4F3EE] px-3 py-1.5 text-[11px]">
-                      <span className="text-[#8A8880]">调用编号</span>
-                      <span className="text-[#141413]">{selectedStep.callId}</span>
+                    <div className="font-mono-tabular flex items-center justify-between rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-1.5 text-[11px]">
+                      <span className="text-[var(--ink-muted)]">调用编号</span>
+                      <span className="text-[var(--ink-primary)]">{selectedStep.callId}</span>
                     </div>
                   )}
 
                   {selectedStep.input !== undefined && (
                     <section className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-[#575652]">输入参数</span>
+                        <span className="text-[11px] font-semibold text-[var(--ink-secondary)]">输入参数</span>
                         <button
                           type="button"
                           onClick={() => copyText('input', stringifyPretty(selectedStep.input))}
-                          className="inline-flex items-center gap-1 text-[11px] text-[#575652] hover:text-[#1E4D9B]"
+                          className="inline-flex items-center gap-1 text-[11px] text-[var(--ink-secondary)] hover:text-[var(--brand-secondary)]"
                         >
                           {copiedField === 'input' ? (
                             <>
-                              <Check className="h-3 w-3 text-[#246A4D]" />
+                              <Check className="h-3 w-3 text-[var(--status-ok)]" />
                               已复制
                             </>
                           ) : (
@@ -781,7 +781,7 @@ export function TrajectoryView() {
                           )}
                         </button>
                       </div>
-                      <pre className="font-mono-tabular max-h-64 overflow-auto rounded border border-[#D8D5CB] bg-[#ECEAE2] p-3 text-[11px] whitespace-pre-wrap text-[#141413]">
+                      <pre className="font-mono-tabular max-h-64 overflow-auto rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] p-3 text-[11px] whitespace-pre-wrap text-[var(--ink-primary)]">
                         {stringifyPretty(selectedStep.input)}
                       </pre>
                     </section>
@@ -790,15 +790,15 @@ export function TrajectoryView() {
                   {selectedStep.output !== undefined && (
                     <section className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-[#575652]">输出结果</span>
+                        <span className="text-[11px] font-semibold text-[var(--ink-secondary)]">输出结果</span>
                         <button
                           type="button"
                           onClick={() => copyText('output', stringifyPretty(selectedStep.output))}
-                          className="inline-flex items-center gap-1 text-[11px] text-[#575652] hover:text-[#1E4D9B]"
+                          className="inline-flex items-center gap-1 text-[11px] text-[var(--ink-secondary)] hover:text-[var(--brand-secondary)]"
                         >
                           {copiedField === 'output' ? (
                             <>
-                              <Check className="h-3 w-3 text-[#246A4D]" />
+                              <Check className="h-3 w-3 text-[var(--status-ok)]" />
                               已复制
                             </>
                           ) : (
@@ -809,7 +809,7 @@ export function TrajectoryView() {
                           )}
                         </button>
                       </div>
-                      <pre className="font-mono-tabular max-h-80 overflow-auto rounded border border-[#D8D5CB] bg-[#ECEAE2] p-3 text-[11px] whitespace-pre-wrap text-[#141413]">
+                      <pre className="font-mono-tabular max-h-80 overflow-auto rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] p-3 text-[11px] whitespace-pre-wrap text-[var(--ink-primary)]">
                         {stringifyPretty(selectedStep.output)}
                       </pre>
                     </section>
@@ -818,15 +818,15 @@ export function TrajectoryView() {
                   {selectedStep.textBody !== undefined && (
                     <section className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-[#575652]">完整内容</span>
+                        <span className="text-[11px] font-semibold text-[var(--ink-secondary)]">完整内容</span>
                         <button
                           type="button"
                           onClick={() => copyText('body', selectedStep.textBody ?? '')}
-                          className="inline-flex items-center gap-1 text-[11px] text-[#575652] hover:text-[#1E4D9B]"
+                          className="inline-flex items-center gap-1 text-[11px] text-[var(--ink-secondary)] hover:text-[var(--brand-secondary)]"
                         >
                           {copiedField === 'body' ? (
                             <>
-                              <Check className="h-3 w-3 text-[#246A4D]" />
+                              <Check className="h-3 w-3 text-[var(--status-ok)]" />
                               已复制
                             </>
                           ) : (
@@ -837,7 +837,7 @@ export function TrajectoryView() {
                           )}
                         </button>
                       </div>
-                      <div className="max-h-96 overflow-auto rounded border border-[#D8D5CB] bg-[#F4F3EE] p-3 text-xs leading-relaxed whitespace-pre-wrap text-[#141413]">
+                      <div className="max-h-96 overflow-auto rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] p-3 text-xs leading-relaxed whitespace-pre-wrap text-[var(--ink-primary)]">
                         {selectedStep.textBody}
                       </div>
                     </section>

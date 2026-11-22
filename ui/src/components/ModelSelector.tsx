@@ -64,25 +64,25 @@ export function ModelSelector() {
           type="button"
           onClick={() => setOpenMenu((m) => (m === 'model' ? null : 'model'))}
           title={`${currentProvider} / ${currentModel}`}
-          className={`inline-flex h-7 max-w-[200px] items-center gap-1.5 rounded border px-2 text-xs text-[#141413] transition ${
+          className={`inline-flex h-7 max-w-[200px] items-center gap-1.5 rounded border px-2 text-xs text-[var(--ink-primary)] transition ${
             openMenu === 'model'
-              ? 'border-[#141413] bg-[#FAF9F5]'
-              : 'border-[#D8D5CB] bg-[#ECEAE2] hover:border-[#141413]'
+              ? 'border-[var(--ink-primary)] bg-[var(--bg-surface)]'
+              : 'border-[var(--border-hairline)] bg-[var(--bg-recessed)] hover:border-[var(--ink-primary)]'
           }`}
         >
-          <Cpu className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+          <Cpu className="h-3.5 w-3.5 shrink-0 text-[var(--ink-secondary)]" />
           <span className="truncate">{matchedModelName}</span>
-          <ChevronDown className="h-3 w-3 shrink-0 text-[#8A8880]" />
+          <ChevronDown className="h-3 w-3 shrink-0 text-[var(--ink-muted)]" />
         </button>
 
         {openMenu === 'model' && (
-          <div className="absolute bottom-full left-0 z-40 mb-1.5 max-h-72 w-64 overflow-y-auto rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] py-1">
+          <div className="absolute bottom-full left-0 z-40 mb-1.5 max-h-72 w-64 overflow-y-auto rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1">
             {providers.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-[#8A8880]">暂无可用模型</div>
+              <div className="px-3 py-2 text-xs text-[var(--ink-muted)]">暂无可用模型</div>
             ) : (
               providers.map((p) => (
                 <div key={p.id} className="py-1 first:pt-0.5">
-                  <div className="px-3 py-1 text-[10px] font-semibold tracking-wider text-[#8A8880]">
+                  <div className="px-3 py-1 text-[10px] font-semibold tracking-wider text-[var(--ink-muted)]">
                     {p.name || p.id}
                   </div>
                   <ul>
@@ -98,12 +98,12 @@ export function ModelSelector() {
                             }}
                             className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs transition ${
                               active
-                                ? 'bg-[#ECEAE2] font-medium text-[#141413]'
-                                : 'text-[#575652] hover:bg-[#F4F3EE] hover:text-[#141413]'
+                                ? 'bg-[var(--bg-recessed)] font-medium text-[var(--ink-primary)]'
+                                : 'text-[var(--ink-secondary)] hover:bg-[var(--bg-canvas)] hover:text-[var(--ink-primary)]'
                             }`}
                           >
                             <span className="truncate">{m.name || m.id}</span>
-                            {active && <Check className="h-3.5 w-3.5 shrink-0 text-[#D13B27]" />}
+                            {active && <Check className="h-3.5 w-3.5 shrink-0 text-[var(--brand-primary)]" />}
                           </button>
                         </li>
                       )
@@ -122,19 +122,19 @@ export function ModelSelector() {
           type="button"
           onClick={() => setOpenMenu((m) => (m === 'effort' ? null : 'effort'))}
           title="切换推理强度"
-          className={`inline-flex h-7 items-center gap-1.5 rounded border px-2 text-xs text-[#141413] transition ${
+          className={`inline-flex h-7 items-center gap-1.5 rounded border px-2 text-xs text-[var(--ink-primary)] transition ${
             openMenu === 'effort'
-              ? 'border-[#141413] bg-[#FAF9F5]'
-              : 'border-[#D8D5CB] bg-[#ECEAE2] hover:border-[#141413]'
+              ? 'border-[var(--ink-primary)] bg-[var(--bg-surface)]'
+              : 'border-[var(--border-hairline)] bg-[var(--bg-recessed)] hover:border-[var(--ink-primary)]'
           }`}
         >
-          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-[var(--ink-secondary)]" />
           <span>{currentEffortLabel}</span>
-          <ChevronDown className="h-3 w-3 shrink-0 text-[#8A8880]" />
+          <ChevronDown className="h-3 w-3 shrink-0 text-[var(--ink-muted)]" />
         </button>
 
         {openMenu === 'effort' && (
-          <div className="absolute bottom-full left-0 z-40 mb-1.5 w-32 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] py-1">
+          <div className="absolute bottom-full left-0 z-40 mb-1.5 w-32 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1">
             {EFFORTS.map((item) => {
               const active = item.value === currentEffort
               return (
@@ -149,12 +149,12 @@ export function ModelSelector() {
                   }}
                   className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs transition ${
                     active
-                      ? 'bg-[#ECEAE2] font-medium text-[#141413]'
-                      : 'text-[#575652] hover:bg-[#F4F3EE] hover:text-[#141413]'
+                      ? 'bg-[var(--bg-recessed)] font-medium text-[var(--ink-primary)]'
+                      : 'text-[var(--ink-secondary)] hover:bg-[var(--bg-canvas)] hover:text-[var(--ink-primary)]'
                   }`}
                 >
                   <span>{item.label}</span>
-                  {active && <Check className="h-3.5 w-3.5 text-[#D13B27]" />}
+                  {active && <Check className="h-3.5 w-3.5 text-[var(--brand-primary)]" />}
                 </button>
               )
             })}

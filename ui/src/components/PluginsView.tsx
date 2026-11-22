@@ -20,24 +20,24 @@ function availabilityBadge(bundle: PluginBundleInfo): { label: string; className
   if (bundle.error) {
     return {
       label: '加载异常',
-      className: 'border-[#D13B27]/40 bg-[#D13B27]/10 text-[#9c2515]',
+      className: 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10 text-[var(--status-danger-text)]',
     }
   }
   if (!bundle.installed) {
     return {
       label: '未安装',
-      className: 'border-[#C4881C]/40 bg-[#C4881C]/10 text-[#8a5d0c]',
+      className: 'border-[var(--status-warn)]/40 bg-[var(--status-warn)]/10 text-[var(--status-warn-text)]',
     }
   }
   if (bundle.enabled) {
     return {
       label: '已启用',
-      className: 'border-[#246A4D]/35 bg-[#246A4D]/10 text-[#1d543d]',
+      className: 'border-[var(--status-ok)]/35 bg-[var(--status-ok)]/10 text-[var(--status-ok-text)]',
     }
   }
   return {
     label: '已停用',
-    className: 'border-[#D8D5CB] bg-[#ECEAE2] text-[#575652]',
+    className: 'border-[var(--border-hairline)] bg-[var(--bg-recessed)] text-[var(--ink-secondary)]',
   }
 }
 
@@ -107,18 +107,18 @@ export function PluginsView() {
   }
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col bg-[#F4F3EE]">
+    <section className="flex min-h-0 flex-1 flex-col bg-[var(--bg-canvas)]">
       {/* Bauhaus Sub-header */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#D8D5CB] bg-[#FAF9F5] px-5 py-2.5">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[var(--border-hairline)] bg-[var(--bg-surface)] px-5 py-2.5">
         <div className="flex items-center gap-3">
-          <div className="inline-flex rounded border border-[#D8D5CB] bg-[#ECEAE2] p-0.5">
+          <div className="inline-flex rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] p-0.5">
             <button
               type="button"
               onClick={() => setActiveTab('plugins')}
               className={`inline-flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition ${
                 activeTab === 'plugins'
-                  ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
-                  : 'text-[#575652] hover:text-[#141413]'
+                  ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+                  : 'text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]'
               }`}
             >
               <Package className="h-3.5 w-3.5" />
@@ -129,8 +129,8 @@ export function PluginsView() {
               onClick={() => setActiveTab('skills')}
               className={`inline-flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition ${
                 activeTab === 'skills'
-                  ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
-                  : 'text-[#575652] hover:text-[#141413]'
+                  ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+                  : 'text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]'
               }`}
             >
               <BookOpen className="h-3.5 w-3.5" />
@@ -138,15 +138,15 @@ export function PluginsView() {
             </button>
           </div>
 
-          <div className="font-mono-tabular hidden items-center gap-2 text-[11px] text-[#575652] md:flex">
-            <span className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2 py-0.5">
+          <div className="font-mono-tabular hidden items-center gap-2 text-[11px] text-[var(--ink-secondary)] md:flex">
+            <span className="rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2 py-0.5">
               配置集：{hostInfo?.profile ?? config?.profile ?? 'web'}
             </span>
-            <span className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2 py-0.5">
+            <span className="rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2 py-0.5">
               已启用 {stats.enabled}/{stats.total}
             </span>
             {stats.thirdParty > 0 && (
-              <span className="rounded border border-[#1E4D9B]/30 bg-[#1E4D9B]/8 px-2 py-0.5 text-[#1E4D9B]">
+              <span className="rounded border border-[var(--brand-secondary)]/30 bg-[var(--brand-secondary)]/8 px-2 py-0.5 text-[var(--brand-secondary)]">
                 扩展插件 {stats.thirdParty}
               </span>
             )}
@@ -158,7 +158,7 @@ export function PluginsView() {
             type="button"
             disabled={pluginsLoading || !bridgeCapabilities.pluginManager}
             onClick={() => void fetchPlugins()}
-            className="inline-flex items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2.5 py-1 text-xs font-medium text-[#141413] transition hover:border-[#141413] disabled:opacity-45"
+            className="inline-flex items-center gap-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2.5 py-1 text-xs font-medium text-[var(--ink-primary)] transition hover:border-[var(--ink-primary)] disabled:opacity-45"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${pluginsLoading ? 'animate-spin' : ''}`} />
             刷新列表
@@ -167,15 +167,15 @@ export function PluginsView() {
       </div>
 
       {pluginRestartRequired && (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#C4881C]/40 bg-[#C4881C]/10 px-5 py-2 text-xs text-[#734d08]">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--status-warn)]/40 bg-[var(--status-warn)]/10 px-5 py-2 text-xs text-[var(--status-warn-text)]">
           <span className="flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#C4881C]" />
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--status-warn)]" />
             插件变更已写入 DSH 配置，重启后端后将完整生效。
           </span>
           <button
             type="button"
             onClick={() => void restartWorker()}
-            className="rounded bg-[#141413] px-2.5 py-1 text-[11px] font-medium text-[#FAF9F5] hover:bg-[#2c2c2a]"
+            className="rounded bg-[var(--ink-primary)] px-2.5 py-1 text-[11px] font-medium text-[var(--bg-surface)] hover:bg-[var(--ink-hover)]"
           >
             立即重启后端
           </button>
@@ -189,13 +189,13 @@ export function PluginsView() {
         <div className="mx-auto max-w-4xl space-y-5">
           {/* Profile guidance if pluginManager is unavailable */}
           {!bridgeCapabilities.pluginManager && (
-            <div className="rounded-lg border border-[#C4881C]/40 bg-[#FAF9F5] p-4">
+            <div className="rounded-lg border border-[var(--status-warn)]/40 bg-[var(--bg-surface)] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-[#141413]">
+                  <div className="text-sm font-semibold text-[var(--ink-primary)]">
                     当前运行配置集未加载 DSH 插件管理服务
                   </div>
-                  <p className="mt-1 text-xs text-[#575652]">
+                  <p className="mt-1 text-xs text-[var(--ink-secondary)]">
                     将运行配置集切换为 <code className="font-mono-tabular">web</code>{' '}
                     即可同时加载完整 DSH 后端与前端插件生态（插件界面将直接融入左侧栏与对话区）。
                   </p>
@@ -203,7 +203,7 @@ export function PluginsView() {
                 <button
                   type="button"
                   onClick={() => void handleSwitchToWebProfile()}
-                  className="rounded bg-[#D13B27] px-3 py-1.5 text-xs font-medium text-[#FAF9F5] hover:bg-[#b5301f]"
+                  className="rounded bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--brand-hover)]"
                 >
                   切换至 web 配置集并重启
                 </button>
@@ -214,16 +214,16 @@ export function PluginsView() {
           {/* Install plugin bar */}
           <form
             onSubmit={(e) => void handleInstall(e)}
-            className="rounded-lg border border-[#D8D5CB] bg-[#FAF9F5] p-4"
+            className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-4"
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 bg-[#D13B27]" />
-                <h3 className="text-xs font-semibold tracking-wide text-[#141413]">
+                <span className="h-2 w-2 bg-[var(--brand-primary)]" />
+                <h3 className="text-xs font-semibold tracking-wide text-[var(--ink-primary)]">
                   安装新插件
                 </h3>
               </div>
-              <span className="font-mono-tabular text-[11px] text-[#8A8880]">
+              <span className="font-mono-tabular text-[11px] text-[var(--ink-muted)]">
                 支持 npm 包名、.tgz 压缩包链接或本地路径
               </span>
             </div>
@@ -234,7 +234,7 @@ export function PluginsView() {
                 onChange={(e) => setInstallSpec(e.target.value)}
                 placeholder="例如：@scope/dsh-plugin、https://.../plugin.tgz 或 file:/path/to/plugin.tgz"
                 disabled={!bridgeCapabilities.pluginManager || pluginBusyKey === 'install'}
-                className="font-mono-tabular min-w-0 flex-1 rounded border border-[#D8D5CB] bg-[#F4F3EE] px-3 py-1.5 text-xs text-[#141413] placeholder-[#8A8880] focus:border-[#141413] focus:bg-[#FAF9F5] focus:outline-none disabled:opacity-50"
+                className="font-mono-tabular min-w-0 flex-1 rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-3 py-1.5 text-xs text-[var(--ink-primary)] placeholder-[var(--ink-muted)] focus:border-[var(--ink-primary)] focus:bg-[var(--bg-surface)] focus:outline-none disabled:opacity-50"
               />
               <button
                 type="submit"
@@ -243,7 +243,7 @@ export function PluginsView() {
                   !installSpec.trim() ||
                   pluginBusyKey === 'install'
                 }
-                className="inline-flex shrink-0 items-center gap-1.5 rounded bg-[#141413] px-3.5 py-1.5 text-xs font-medium text-[#FAF9F5] transition hover:bg-[#2a2a28] disabled:opacity-45"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded bg-[var(--ink-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-surface)] transition hover:bg-[var(--ink-hover)] disabled:opacity-45"
               >
                 <Plus className="h-3.5 w-3.5" />
                 {pluginBusyKey === 'install' ? '安装中...' : '安装插件'}
@@ -254,14 +254,14 @@ export function PluginsView() {
           {/* Plugin list */}
           <div className="space-y-2.5">
             {pluginsLoading && plugins.length === 0 ? (
-              <div className="rounded-lg border border-[#D8D5CB] bg-[#FAF9F5] px-5 py-10 text-center text-xs text-[#8A8880]">
+              <div className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-5 py-10 text-center text-xs text-[var(--ink-muted)]">
                 正在读取 DSH 插件列表...
               </div>
             ) : plugins.length === 0 ? (
-              <div className="rounded-lg border border-[#D8D5CB] bg-[#FAF9F5] px-5 py-10 text-center">
-                <Puzzle className="mx-auto h-6 w-6 text-[#8A8880]" />
-                <div className="mt-2 text-xs font-medium text-[#141413]">暂无可管理的插件</div>
-                <div className="mt-1 text-[11px] text-[#8A8880]">
+              <div className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-5 py-10 text-center">
+                <Puzzle className="mx-auto h-6 w-6 text-[var(--ink-muted)]" />
+                <div className="mt-2 text-xs font-medium text-[var(--ink-primary)]">暂无可管理的插件</div>
+                <div className="mt-1 text-[11px] text-[var(--ink-muted)]">
                   确认后端已就绪并运行在 web 配置集下
                 </div>
               </div>
@@ -279,16 +279,16 @@ export function PluginsView() {
                 return (
                   <div
                     key={bundle.name}
-                    className="rounded-lg border border-[#D8D5CB] bg-[#FAF9F5] transition hover:border-[#C2BEB2]"
+                    className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] transition hover:border-[var(--border-strong)]"
                   >
                     <div className="flex items-start justify-between gap-4 px-4 py-3.5">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono-tabular text-xs font-semibold text-[#141413]">
+                          <span className="font-mono-tabular text-xs font-semibold text-[var(--ink-primary)]">
                             {bundle.name}
                           </span>
                           {bundle.version && (
-                            <span className="font-mono-tabular rounded border border-[#ECEAE2] bg-[#F4F3EE] px-1.5 py-0.5 text-[10px] text-[#575652]">
+                            <span className="font-mono-tabular rounded border border-[var(--bg-recessed)] bg-[var(--bg-canvas)] px-1.5 py-0.5 text-[10px] text-[var(--ink-secondary)]">
                               v{bundle.version}
                             </span>
                           )}
@@ -298,26 +298,26 @@ export function PluginsView() {
                             {badge.label}
                           </span>
                           {!isCore && (
-                            <span className="rounded border border-[#1E4D9B]/30 bg-[#1E4D9B]/8 px-1.5 py-0.5 text-[10px] font-medium text-[#1E4D9B]">
+                            <span className="rounded border border-[var(--brand-secondary)]/30 bg-[var(--brand-secondary)]/8 px-1.5 py-0.5 text-[10px] font-medium text-[var(--brand-secondary)]">
                               第三方扩展
                             </span>
                           )}
                         </div>
 
                         {bundle.description && (
-                          <p className="mt-1.5 text-xs leading-relaxed text-[#575652]">
+                          <p className="mt-1.5 text-xs leading-relaxed text-[var(--ink-secondary)]">
                             {bundle.description}
                           </p>
                         )}
 
                         {bundle.source && (
-                          <div className="font-mono-tabular mt-1 truncate text-[10px] text-[#8A8880]">
+                          <div className="font-mono-tabular mt-1 truncate text-[10px] text-[var(--ink-muted)]">
                             来源：{bundle.source}
                           </div>
                         )}
 
                         {bundle.error && (
-                          <div className="mt-2 rounded border border-[#D13B27]/30 bg-[#D13B27]/8 px-2.5 py-1.5 text-[11px] text-[#8f2214]">
+                          <div className="mt-2 rounded border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/8 px-2.5 py-1.5 text-[11px] text-[var(--status-danger-text)]">
                             {bundle.error}
                           </div>
                         )}
@@ -327,7 +327,7 @@ export function PluginsView() {
                             <button
                               type="button"
                               onClick={() => toggleExpand(bundle.name)}
-                              className="inline-flex items-center gap-1 text-[11px] font-medium text-[#575652] hover:text-[#141413]"
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]"
                             >
                               {expanded ? (
                                 <ChevronDown className="h-3.5 w-3.5" />
@@ -342,7 +342,7 @@ export function PluginsView() {
                             <button
                               type="button"
                               onClick={() => toggleConfig(bundle.name)}
-                              className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1E4D9B] hover:underline"
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--brand-secondary)] hover:underline"
                             >
                               <SlidersHorizontal className="h-3 w-3" />
                               {configOpen ? '收起插件配置' : '展开插件配置'}
@@ -363,14 +363,14 @@ export function PluginsView() {
                                     setConfirmRemove(null)
                                     void removePluginBundle(bundle.name)
                                   }}
-                                  className="rounded bg-[#D13B27] px-2 py-1 text-[11px] font-medium text-[#FAF9F5] hover:bg-[#b5301f]"
+                                  className="rounded bg-[var(--brand-primary)] px-2 py-1 text-[11px] font-medium text-white hover:bg-[var(--brand-hover)]"
                                 >
                                   确认卸载
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setConfirmRemove(null)}
-                                  className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2 py-1 text-[11px] text-[#575652] hover:text-[#141413]"
+                                  className="rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2 py-1 text-[11px] text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]"
                                 >
                                   取消
                                 </button>
@@ -381,7 +381,7 @@ export function PluginsView() {
                                 disabled={isBusy}
                                 onClick={() => setConfirmRemove(bundle.name)}
                                 title="卸载插件"
-                                className="rounded p-1.5 text-[#8A8880] transition hover:bg-[#D13B27]/10 hover:text-[#D13B27] disabled:opacity-40"
+                                className="rounded p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)] disabled:opacity-40"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
@@ -398,12 +398,12 @@ export function PluginsView() {
                           title={bundle.enabled ? '停用插件' : '启用插件'}
                           className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition disabled:opacity-45 ${
                             bundle.enabled
-                              ? 'border-[#D13B27] bg-[#D13B27]'
-                              : 'border-[#C2BEB2] bg-[#ECEAE2]'
+                              ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]'
+                              : 'border-[var(--border-strong)] bg-[var(--bg-recessed)]'
                           }`}
                         >
                           <span
-                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-[#FAF9F5] transition ${
+                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-[var(--bg-surface)] transition ${
                               bundle.enabled ? 'translate-x-4' : 'translate-x-0.5'
                             }`}
                           />
@@ -412,13 +412,13 @@ export function PluginsView() {
                     </div>
 
                     {configOpen && hasConfigSlot && (
-                      <div className="border-t border-[#ECEAE2] bg-[#F4F3EE]/50 px-4 py-3">
+                      <div className="border-t border-[var(--bg-recessed)] bg-[var(--bg-canvas)]/50 px-4 py-3">
                         <DshSlot name="plugins.bundle.config" slotKey={bundle.name} />
                       </div>
                     )}
 
                     {expanded && bundle.entries.length > 0 && (
-                      <div className="border-t border-[#ECEAE2] bg-[#F4F3EE]/60 px-4 py-2.5">
+                      <div className="border-t border-[var(--bg-recessed)] bg-[var(--bg-canvas)]/60 px-4 py-2.5">
                         <div className="space-y-1.5">
                           {bundle.entries.map((entry) => {
                             const entryId = entry.entryId
@@ -427,13 +427,13 @@ export function PluginsView() {
                             return (
                               <div
                                 key={entry.rowId}
-                                className="flex items-center justify-between gap-3 rounded border border-[#ECEAE2] bg-[#FAF9F5] px-3 py-1.5 text-[11px]"
+                                className="flex items-center justify-between gap-3 rounded border border-[var(--bg-recessed)] bg-[var(--bg-surface)] px-3 py-1.5 text-[11px]"
                               >
                                 <div className="min-w-0">
-                                  <div className="font-mono-tabular truncate text-[#141413]">
+                                  <div className="font-mono-tabular truncate text-[var(--ink-primary)]">
                                     {entry.moduleName}
                                   </div>
-                                  <div className="font-mono-tabular truncate text-[10px] text-[#8A8880]">
+                                  <div className="font-mono-tabular truncate text-[10px] text-[var(--ink-muted)]">
                                     {entry.rowId}
                                   </div>
                                 </div>
@@ -449,7 +449,7 @@ export function PluginsView() {
                                           true,
                                         )
                                       }
-                                      className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2 py-0.5 text-[10px] text-[#141413] hover:border-[#141413] disabled:opacity-45"
+                                      className="rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2 py-0.5 text-[10px] text-[var(--ink-primary)] hover:border-[var(--ink-primary)] disabled:opacity-45"
                                     >
                                       启用
                                     </button>
@@ -463,7 +463,7 @@ export function PluginsView() {
                                           false,
                                         )
                                       }
-                                      className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2 py-0.5 text-[10px] text-[#575652] hover:border-[#D13B27] hover:text-[#D13B27] disabled:opacity-45"
+                                      className="rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2 py-0.5 text-[10px] text-[var(--ink-secondary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-45"
                                     >
                                       停用
                                     </button>

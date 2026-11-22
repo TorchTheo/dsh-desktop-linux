@@ -30,7 +30,7 @@ const markdownComponents = {
     <a
       {...props}
       href={href}
-      className="text-[#1E4D9B] underline decoration-[#1E4D9B]/35 underline-offset-2 hover:text-[#D13B27] hover:decoration-[#D13B27]"
+      className="text-[var(--brand-secondary)] underline decoration-[var(--brand-secondary)]/35 underline-offset-2 hover:text-[var(--brand-primary)] hover:decoration-[var(--brand-primary)]"
       onClick={(e) => {
         if (href && /^(https?:|mailto:)/i.test(href)) {
           e.preventDefault()
@@ -77,12 +77,12 @@ function CopyButton({ text }: { text: string }) {
         window.setTimeout(() => setCopied(false), 1400)
       }}
       title="复制内容"
-      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-[#8A8880] transition hover:bg-[#ECEAE2] hover:text-[#141413]"
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-[var(--ink-muted)] transition hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
     >
       {copied ? (
         <>
-          <Check className="h-3 w-3 text-[#246A4D]" />
-          <span className="text-[#246A4D]">已复制</span>
+          <Check className="h-3 w-3 text-[var(--status-ok)]" />
+          <span className="text-[var(--status-ok)]">已复制</span>
         </>
       ) : (
         <>
@@ -122,16 +122,16 @@ function ThinkingBlock({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="my-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5]">
+    <div className="my-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#575652] hover:bg-[#ECEAE2]/50 hover:text-[#141413]"
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-secondary)] hover:bg-[var(--bg-recessed)]/50 hover:text-[var(--ink-primary)]"
       >
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         <span
-          className={`h-2 w-2 rounded-full border border-[#1E4D9B] ${
-            streaming ? 'bg-[#1E4D9B] animate-pulse' : 'bg-transparent'
+          className={`h-2 w-2 rounded-full border border-[var(--brand-secondary)] ${
+            streaming ? 'bg-[var(--brand-secondary)] animate-pulse' : 'bg-transparent'
           }`}
         />
         <span className="text-[11px] font-medium">
@@ -139,7 +139,7 @@ function ThinkingBlock({
         </span>
       </button>
       {open && (
-        <div className="border-t border-[#ECEAE2] bg-[#F4F3EE]/60 px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-wrap text-[#575652]">
+        <div className="border-t border-[var(--bg-recessed)] bg-[var(--bg-canvas)]/60 px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-wrap text-[var(--ink-secondary)]">
           {text}
         </div>
       )}
@@ -150,25 +150,25 @@ function ThinkingBlock({
 function ToolUseBlock({ name, id, input }: { name: string; id: string; input: unknown }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="my-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5]">
+    <div className="my-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-1.5 text-xs text-[#141413] hover:bg-[#ECEAE2]/50"
+        className="flex w-full items-center justify-between px-3 py-1.5 text-xs text-[var(--ink-primary)] hover:bg-[var(--bg-recessed)]/50"
       >
         <span className="flex items-center gap-2">
           {open ? (
-            <ChevronDown className="h-3.5 w-3.5 text-[#575652]" />
+            <ChevronDown className="h-3.5 w-3.5 text-[var(--ink-secondary)]" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-[#575652]" />
+            <ChevronRight className="h-3.5 w-3.5 text-[var(--ink-secondary)]" />
           )}
-          <span className="h-2 w-2 bg-[#141413]" />
+          <span className="h-2 w-2 bg-[var(--ink-primary)]" />
           <span className="font-mono-tabular text-[11px] font-semibold">工具 · {name}</span>
         </span>
-        <span className="font-mono-tabular text-[10px] text-[#8A8880]">{id.slice(0, 10)}</span>
+        <span className="font-mono-tabular text-[10px] text-[var(--ink-muted)]">{id.slice(0, 10)}</span>
       </button>
       {open && (
-        <pre className="font-mono-tabular max-h-72 overflow-auto border-t border-[#D8D5CB] bg-[#ECEAE2] p-3 text-[11px] text-[#141413]">
+        <pre className="font-mono-tabular max-h-72 overflow-auto border-t border-[var(--border-hairline)] bg-[var(--bg-recessed)] p-3 text-[11px] text-[var(--ink-primary)]">
           {formatJson(input)}
         </pre>
       )}
@@ -188,34 +188,34 @@ function ToolResultBlock({
   const [open, setOpen] = useState(isError)
   return (
     <div
-      className={`my-1.5 rounded border bg-[#FAF9F5] ${
-        isError ? 'border-[#D13B27]/60' : 'border-[#D8D5CB]'
+      className={`my-1.5 rounded border bg-[var(--bg-surface)] ${
+        isError ? 'border-[var(--brand-primary)]/60' : 'border-[var(--border-hairline)]'
       }`}
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-1.5 text-xs text-[#141413] hover:bg-[#ECEAE2]/50"
+        className="flex w-full items-center justify-between px-3 py-1.5 text-xs text-[var(--ink-primary)] hover:bg-[var(--bg-recessed)]/50"
       >
         <span className="flex items-center gap-2">
           {open ? (
-            <ChevronDown className="h-3.5 w-3.5 text-[#575652]" />
+            <ChevronDown className="h-3.5 w-3.5 text-[var(--ink-secondary)]" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-[#575652]" />
+            <ChevronRight className="h-3.5 w-3.5 text-[var(--ink-secondary)]" />
           )}
           <span
-            className={`h-2 w-2 rounded-full ${isError ? 'bg-[#D13B27]' : 'bg-[#246A4D]'}`}
+            className={`h-2 w-2 rounded-full ${isError ? 'bg-[var(--brand-primary)]' : 'bg-[var(--status-ok)]'}`}
           />
           <span className="text-[11px] font-medium">
             {isError ? '输出 · 执行失败' : '输出 · 执行完成'}
           </span>
         </span>
-        <span className="font-mono-tabular text-[10px] text-[#8A8880]">
+        <span className="font-mono-tabular text-[10px] text-[var(--ink-muted)]">
           {toolUseId.slice(0, 10)}
         </span>
       </button>
       {open && (
-        <pre className="font-mono-tabular max-h-80 overflow-auto border-t border-[#D8D5CB] bg-[#ECEAE2] p-3 text-[11px] whitespace-pre-wrap text-[#141413]">
+        <pre className="font-mono-tabular max-h-80 overflow-auto border-t border-[var(--border-hairline)] bg-[var(--bg-recessed)] p-3 text-[11px] whitespace-pre-wrap text-[var(--ink-primary)]">
           {formatJson(content)}
         </pre>
       )}
@@ -227,7 +227,7 @@ function renderBlock(block: UiContentBlock, index: number) {
   switch (block.type) {
     case 'text':
       return (
-        <div key={index} className="markdown-body text-[14.5px]">
+        <div key={index} className="markdown-body text-[15.5px]">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {block.text}
           </ReactMarkdown>
@@ -257,7 +257,7 @@ function renderBlock(block: UiContentBlock, index: number) {
           key={index}
           src={block.dataUrl}
           alt="图片附件"
-          className="my-2 max-h-64 rounded border border-[#D8D5CB] object-contain"
+          className="my-2 max-h-64 rounded border border-[var(--border-hairline)] object-contain"
         />
       )
     case 'deliverable':
@@ -273,7 +273,7 @@ function renderBlock(block: UiContentBlock, index: number) {
       return (
         <pre
           key={index}
-          className="font-mono-tabular my-1 rounded border border-[#D8D5CB] bg-[#ECEAE2] p-2 text-[11px] text-[#575652]"
+          className="font-mono-tabular my-1 rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] p-2 text-[11px] text-[var(--ink-secondary)]"
         >
           {formatJson(block.raw)}
         </pre>
@@ -302,28 +302,28 @@ function ProcessGroupDisclosure({ blocks }: { blocks: UiContentBlock[] }) {
   }, [blocks])
 
   return (
-    <div className="mb-2.5 rounded-md border border-[#D8D5CB] bg-[#ECEAE2]/55">
+    <div className="mb-2.5 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-recessed)]/55">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+        className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-secondary)] hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
       >
         <span className="flex items-center gap-2">
           {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           <span
             className={`h-2 w-2 rounded-full ${
-              summaryParts.hasError ? 'bg-[#D13B27]' : 'bg-[#246A4D]'
+              summaryParts.hasError ? 'bg-[var(--brand-primary)]' : 'bg-[var(--status-ok)]'
             }`}
           />
-          <span className="font-medium text-[#141413]">执行过程</span>
-          <span className="text-[11px] text-[#575652]">
+          <span className="font-medium text-[var(--ink-primary)]">执行过程</span>
+          <span className="text-[11px] text-[var(--ink-secondary)]">
             {summaryParts.items.length > 0 ? summaryParts.items.join(' · ') : `${blocks.length} 步`}
           </span>
         </span>
-        <span className="text-[11px] text-[#8A8880]">{open ? '收起' : '展开详情'}</span>
+        <span className="text-[11px] text-[var(--ink-muted)]">{open ? '收起' : '展开详情'}</span>
       </button>
       {open && (
-        <div className="border-t border-[#D8D5CB] bg-[#F4F3EE]/70 px-3 py-2">
+        <div className="border-t border-[var(--border-hairline)] bg-[var(--bg-canvas)]/70 px-3 py-2">
           {blocks.map((block, idx) => renderBlock(block, idx))}
         </div>
       )}
@@ -478,7 +478,7 @@ const StreamingBubble = memo(function StreamingBubble({
     return (
       <div className="flex items-start justify-start gap-2.5">
         <div
-          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#1E4D9B] bg-[#1E4D9B] text-[#FAF9F5]"
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--brand-secondary)] bg-[var(--brand-secondary)] text-white"
           title="正在生成"
         >
           <Bot className="h-3.5 w-3.5 animate-pulse stroke-[1.9]" />
@@ -488,11 +488,11 @@ const StreamingBubble = memo(function StreamingBubble({
             <ThinkingBlock text={streaming.thinking} defaultOpen streaming />
           )}
           {streaming.text && (
-            <div className="markdown-body text-[14.5px]">
+            <div className="markdown-body text-[15.5px]">
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {streaming.text}
               </ReactMarkdown>
-              <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-[#D13B27] align-middle" />
+              <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-[var(--brand-primary)] align-middle" />
             </div>
           )}
         </article>
@@ -504,13 +504,13 @@ const StreamingBubble = memo(function StreamingBubble({
     return (
       <div className="flex items-start justify-start gap-2.5">
         <div
-          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#1E4D9B] bg-[#1E4D9B] text-[#FAF9F5]"
+          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--brand-secondary)] bg-[var(--brand-secondary)] text-white"
           title="正在调用模型"
         >
           <Bot className="h-3.5 w-3.5 animate-pulse stroke-[1.9]" />
         </div>
-        <div className="mt-1 inline-flex items-center gap-2 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-3 py-1.5 text-xs text-[#575652]">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-[#D13B27]" />
+        <div className="mt-1 inline-flex items-center gap-2 rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-1.5 text-xs text-[var(--ink-secondary)]">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--brand-primary)]" />
           <span>正在思考并调用模型...</span>
         </div>
       </div>
@@ -630,8 +630,8 @@ export function ChatStream() {
 
   if (isLoadingHistory && messages.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center gap-2 text-xs text-[#575652]">
-        <Loader2 className="h-4 w-4 animate-spin text-[#D13B27]" />
+      <div className="flex flex-1 items-center justify-center gap-2 text-xs text-[var(--ink-secondary)]">
+        <Loader2 className="h-4 w-4 animate-spin text-[var(--brand-primary)]" />
         正在加载历史对话...
       </div>
     )
@@ -649,19 +649,19 @@ export function ChatStream() {
       <div className="bauhaus-dot-grid flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-10">
         <div className="flex w-full max-w-[760px] flex-col items-center">
           <div className="mb-4 flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-[#D13B27]" />
-            <span className="h-3 w-3 bg-[#1E4D9B]" />
+            <span className="h-3 w-3 rounded-full bg-[var(--brand-primary)]" />
+            <span className="h-3 w-3 bg-[var(--brand-secondary)]" />
             <span
-              className="inline-block h-0 w-0 border-x-[6px] border-b-[11px] border-x-transparent border-b-[#C4881C]"
+              className="inline-block h-0 w-0 border-x-[6px] border-b-[11px] border-x-transparent border-b-[var(--status-warn)]"
               aria-hidden="true"
             />
           </div>
 
-          <h2 className="font-editorial text-3xl font-semibold tracking-tight text-[#141413]">
+          <h2 className="font-editorial text-3xl font-semibold tracking-tight text-[var(--ink-primary)]">
             DSH 工作台
           </h2>
 
-          <p className="mt-2 text-xs tracking-wide text-[#575652]">
+          <p className="mt-2 text-xs tracking-wide text-[var(--ink-secondary)]">
             本地直连模式 · {workerStatusText}
             {totalModels > 0 ? ` · 可用模型 ${totalModels} 个` : ''}
           </p>
@@ -679,11 +679,11 @@ export function ChatStream() {
                   type="button"
                   disabled={workerStatus.state !== 'ready'}
                   onClick={() => void sendQuery(item.prompt)}
-                  className="group flex flex-col items-start rounded-lg border border-[#D8D5CB] bg-[#FAF9F5] p-3.5 text-left transition hover:border-[#141413] disabled:cursor-not-allowed disabled:opacity-45"
+                  className="group flex flex-col items-start rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)] p-3.5 text-left transition hover:border-[var(--ink-primary)] disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  <Icon className="h-4 w-4 text-[#575652] transition group-hover:text-[#D13B27]" />
-                  <div className="mt-2.5 text-xs font-semibold text-[#141413]">{item.title}</div>
-                  <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[#8A8880]">
+                  <Icon className="h-4 w-4 text-[var(--ink-secondary)] transition group-hover:text-[var(--brand-primary)]" />
+                  <div className="mt-2.5 text-xs font-semibold text-[var(--ink-primary)]">{item.title}</div>
+                  <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[var(--ink-muted)]">
                     {item.prompt}
                   </div>
                 </button>
@@ -726,18 +726,18 @@ export function ChatStream() {
                         })
                       }}
                       title="右键可重新编辑或回退工作区"
-                      className="max-w-[78%] rounded-lg border border-[#D8D5CB] border-r-[3px] border-r-[#D13B27] bg-[#FAF9F5] px-4 py-3"
+                      className="max-w-[78%] rounded-lg border border-[var(--border-hairline)] border-r-[3px] border-r-[var(--brand-primary)] bg-[var(--bg-surface)] px-4 py-3"
                     >
-                      <div className="text-[14.5px] leading-relaxed text-[#141413]">
+                      <div className="text-[15.5px] leading-relaxed text-[var(--ink-primary)]">
                         {group.userMessage.blocks.map((block, idx) => renderBlock(block, idx))}
                       </div>
-                      <div className="mt-1.5 flex items-center justify-end gap-2 font-mono-tabular text-[10px] text-[#8A8880]">
+                      <div className="mt-1.5 flex items-center justify-end gap-2 font-mono-tabular text-[10px] text-[var(--ink-muted)]">
                         <CopyButton text={extractCopyText(group.userMessage.blocks)} />
                         <span>{formatClock(group.timestamp)}</span>
                       </div>
                     </article>
                     <div
-                      className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#D13B27]/40 bg-[#FAF9F5] text-[#D13B27]"
+                      className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--brand-primary)]/40 bg-[var(--bg-surface)] text-[var(--brand-primary)]"
                       title="用户消息"
                     >
                       <User className="h-3.5 w-3.5 stroke-[2]" />
@@ -750,9 +750,9 @@ export function ChatStream() {
                 return (
                   <div
                     key={group.id}
-                    className="flex items-start gap-2.5 rounded border border-[#D13B27]/50 bg-[#D13B27]/6 px-4 py-3 text-xs text-[#8f2214]"
+                    className="flex items-start gap-2.5 rounded border border-[var(--brand-primary)]/50 bg-[var(--brand-primary)]/6 px-4 py-3 text-xs text-[var(--status-danger-text)]"
                   >
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#D13B27]" />
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-primary)]" />
                     <div className="min-w-0 flex-1">
                       {group.systemMessage.blocks.map((block, idx) => renderBlock(block, idx))}
                     </div>
@@ -763,7 +763,7 @@ export function ChatStream() {
               return (
                 <div key={group.id} className="flex items-start justify-start gap-2.5">
                   <div
-                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#141413] bg-[#141413] text-[#FAF9F5]"
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[var(--ink-primary)] bg-[var(--ink-primary)] text-[var(--bg-surface)]"
                     title="助手回复"
                   >
                     <Bot className="h-3.5 w-3.5 stroke-[1.9]" />
@@ -774,9 +774,9 @@ export function ChatStream() {
                         {group.notices.map((notice, nIdx) => (
                           <div
                             key={nIdx}
-                            className="inline-flex items-center gap-1.5 rounded border border-[#C4881C]/40 bg-[#C4881C]/10 px-2.5 py-1 font-mono-tabular text-[11px] text-[#7a520a]"
+                            className="inline-flex items-center gap-1.5 rounded border border-[var(--status-warn)]/40 bg-[var(--status-warn)]/10 px-2.5 py-1 font-mono-tabular text-[11px] text-[var(--status-warn-text)]"
                           >
-                            <AlertCircle className="h-3 w-3 shrink-0 text-[#C4881C]" />
+                            <AlertCircle className="h-3 w-3 shrink-0 text-[var(--status-warn)]" />
                             <span>已触发重试 · {notice}</span>
                           </div>
                         ))}
@@ -800,7 +800,7 @@ export function ChatStream() {
                       className="mt-2 space-y-2"
                     />
 
-                    <div className="mt-1.5 flex items-center gap-2 font-mono-tabular text-[10px] text-[#8A8880]">
+                    <div className="mt-1.5 flex items-center gap-2 font-mono-tabular text-[10px] text-[var(--ink-muted)]">
                       <span>{formatClock(group.timestamp)}</span>
                       <CopyButton text={extractCopyText(group.finalBlocks.length > 0 ? group.finalBlocks : group.processBlocks)} />
                     </div>
@@ -820,11 +820,11 @@ export function ChatStream() {
                 {subagents.map((sa) => (
                   <div
                     key={sa.childSessionId}
-                    className="inline-flex items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2.5 py-1 text-[11px] text-[#575652]"
+                    className="inline-flex items-center gap-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2.5 py-1 text-[11px] text-[var(--ink-secondary)]"
                   >
                     <span
                       className={`h-1.5 w-1.5 rotate-45 ${
-                        sa.kind === 'started' ? 'bg-[#1E4D9B] animate-pulse' : 'bg-[#246A4D]'
+                        sa.kind === 'started' ? 'bg-[var(--brand-secondary)] animate-pulse' : 'bg-[var(--status-ok)]'
                       }`}
                     />
                     子代理 {sa.childSessionId.slice(0, 8)} ·{' '}
@@ -863,14 +863,14 @@ export function ChatStream() {
                   onMouseLeave={() => setHoveredTurnId((prev) => (prev === turn.id ? null : prev))}
                 >
                   {isHovered && (
-                    <div className="pointer-events-none absolute right-6 z-30 w-64 rounded-md border border-[#C2BEB2] bg-[#FAF9F5] px-3 py-2 text-left shadow-sm">
-                      <div className="mb-1 flex items-center justify-between font-mono-tabular text-[10px] text-[#8A8880]">
-                        <span className="font-semibold text-[#D13B27]">
+                    <div className="pointer-events-none absolute right-6 z-30 w-64 rounded-md border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-left shadow-sm">
+                      <div className="mb-1 flex items-center justify-between font-mono-tabular text-[10px] text-[var(--ink-muted)]">
+                        <span className="font-semibold text-[var(--brand-primary)]">
                           第 {String(idx + 1).padStart(2, '0')} 条
                         </span>
                         <span>{formatClock(turn.timestamp)}</span>
                       </div>
-                      <p className="line-clamp-3 text-xs leading-relaxed text-[#141413]">
+                      <p className="line-clamp-3 text-xs leading-relaxed text-[var(--ink-primary)]">
                         {turn.userText}
                       </p>
                     </div>
@@ -885,10 +885,10 @@ export function ChatStream() {
                     <span
                       className={`block rounded-full transition-all ${
                         isActive
-                          ? 'h-5 w-[3.5px] bg-[#D13B27]'
+                          ? 'h-5 w-[3.5px] bg-[var(--brand-primary)]'
                           : isHovered
-                            ? 'h-4 w-[3px] bg-[#141413]'
-                            : 'h-3.5 w-[2px] bg-[#C2BEB2]'
+                            ? 'h-4 w-[3px] bg-[var(--ink-primary)]'
+                            : 'h-3.5 w-[2px] bg-[var(--border-strong)]'
                       }`}
                     />
                   </button>
@@ -902,7 +902,7 @@ export function ChatStream() {
         <div
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onMouseDown={(e) => e.stopPropagation()}
-          className="fixed z-50 w-56 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] py-1 text-xs shadow-md"
+          className="fixed z-50 w-56 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] py-1 text-xs shadow-md"
         >
           <button
             type="button"
@@ -911,9 +911,9 @@ export function ChatStream() {
               setContextMenu(null)
               void rewindToMessage(target.messageId, true, target.text)
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#141413] hover:bg-[#ECEAE2]"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[var(--ink-primary)] hover:bg-[var(--bg-recessed)]"
           >
-            <Pencil className="h-3.5 w-3.5 text-[#1E4D9B]" />
+            <Pencil className="h-3.5 w-3.5 text-[var(--brand-secondary)]" />
             <span>重新编辑并回退（含工作区）</span>
           </button>
           <button
@@ -923,9 +923,9 @@ export function ChatStream() {
               setContextMenu(null)
               void rewindToMessage(target.messageId, true)
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#141413] hover:bg-[#ECEAE2]"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[var(--ink-primary)] hover:bg-[var(--bg-recessed)]"
           >
-            <RotateCcw className="h-3.5 w-3.5 text-[#D13B27]" />
+            <RotateCcw className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
             <span>回退到此消息（含工作区）</span>
           </button>
           <button
@@ -935,21 +935,21 @@ export function ChatStream() {
               setContextMenu(null)
               void rewindToMessage(target.messageId, false)
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[var(--ink-secondary)] hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
           >
-            <RotateCcw className="h-3.5 w-3.5 text-[#8A8880]" />
+            <RotateCcw className="h-3.5 w-3.5 text-[var(--ink-muted)]" />
             <span>仅回退对话（保留文件）</span>
           </button>
-          <div className="my-1 h-px bg-[#ECEAE2]" />
+          <div className="my-1 h-px bg-[var(--bg-recessed)]" />
           <button
             type="button"
             onClick={() => {
               void navigator.clipboard?.writeText(contextMenu.text)
               setContextMenu(null)
             }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[var(--ink-secondary)] hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
           >
-            <Copy className="h-3.5 w-3.5 text-[#575652]" />
+            <Copy className="h-3.5 w-3.5 text-[var(--ink-secondary)]" />
             <span>复制消息内容</span>
           </button>
         </div>

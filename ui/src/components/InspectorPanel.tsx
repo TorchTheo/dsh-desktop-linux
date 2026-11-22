@@ -78,16 +78,16 @@ export function InspectorPanel() {
 
   return (
     <aside className="flex h-full min-h-0 w-80 shrink-0 flex-col py-3 pr-3">
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[#D8D5CB] bg-[#FAF9F5]">
-        <div className="flex items-center justify-between border-b border-[#D8D5CB] px-4 py-2.5">
-          <span className="text-xs font-semibold tracking-wide text-[#141413]">会话详情</span>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-surface)]">
+        <div className="flex items-center justify-between border-b border-[var(--border-hairline)] px-4 py-2.5">
+          <span className="text-xs font-semibold tracking-wide text-[var(--ink-primary)]">会话详情</span>
           <div className="flex items-center gap-1">
             {session?.persisted && (
               <button
                 type="button"
                 onClick={() => void loadSessionHistory(session.sessionId, true)}
                 title="重新加载本地历史记录"
-                className="rounded p-1 text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+                className="rounded p-1 text-[var(--ink-secondary)] hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
@@ -96,7 +96,7 @@ export function InspectorPanel() {
               type="button"
               onClick={() => setInspectorOpen(false)}
               title="关闭详情面板"
-              className="rounded p-1 text-[#575652] hover:bg-[#ECEAE2] hover:text-[#141413]"
+              className="rounded p-1 text-[var(--ink-secondary)] hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -106,110 +106,110 @@ export function InspectorPanel() {
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 text-xs">
           {/* 会话基础信息 */}
           <section className="space-y-2">
-            <div className="text-[11px] font-semibold text-[#575652]">会话概览</div>
+            <div className="text-[11px] font-semibold text-[var(--ink-secondary)]">会话概览</div>
 
             {session ? (
-              <div className="divide-y divide-[#ECEAE2] rounded border border-[#D8D5CB] bg-[#F4F3EE]/60 px-3 text-[11px]">
+              <div className="divide-y divide-[var(--bg-recessed)] rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)]/60 px-3 text-[11px]">
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-[#8A8880]">会话编号</span>
+                  <span className="text-[var(--ink-muted)]">会话编号</span>
                   <button
                     type="button"
                     onClick={handleCopyId}
-                    className="font-mono-tabular inline-flex items-center gap-1 text-[#141413] hover:text-[#1E4D9B]"
+                    className="font-mono-tabular inline-flex items-center gap-1 text-[var(--ink-primary)] hover:text-[var(--brand-secondary)]"
                     title={session.sessionId}
                   >
                     <span>{session.sessionId.slice(0, 12)}</span>
-                    {copied ? <Check className="h-3 w-3 text-[#246A4D]" /> : <Copy className="h-3 w-3 opacity-60" />}
+                    {copied ? <Check className="h-3 w-3 text-[var(--status-ok)]" /> : <Copy className="h-3 w-3 opacity-60" />}
                   </button>
                 </div>
 
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-[#8A8880]">运行状态</span>
-                  <span className={`font-semibold ${session.status === 'running' ? 'text-[#D13B27]' : 'text-[#246A4D]'}`}>
+                  <span className="text-[var(--ink-muted)]">运行状态</span>
+                  <span className={`font-semibold ${session.status === 'running' ? 'text-[var(--brand-primary)]' : 'text-[var(--status-ok)]'}`}>
                     {session.status === 'running' ? '运行中' : '空闲'}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-2 py-2">
-                  <span className="text-[#8A8880]">模型路由</span>
-                  <span className="font-mono-tabular truncate text-right text-[#141413]">
+                  <span className="text-[var(--ink-muted)]">模型路由</span>
+                  <span className="font-mono-tabular truncate text-right text-[var(--ink-primary)]">
                     {meta?.provider ?? config?.provider ?? '-'} / {meta?.model ?? config?.model ?? '-'}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-[#8A8880]">回合 / 消息</span>
-                  <span className="font-mono-tabular text-[#141413]">
+                  <span className="text-[var(--ink-muted)]">回合 / 消息</span>
+                  <span className="font-mono-tabular text-[var(--ink-primary)]">
                     {telemetry?.turnCount ?? 0} 回合 · {messages.length} 条
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-[#8A8880]">创建时间</span>
-                  <span className="font-mono-tabular text-[#575652]">{formatDateTime(session.createdAt)}</span>
+                  <span className="text-[var(--ink-muted)]">创建时间</span>
+                  <span className="font-mono-tabular text-[var(--ink-secondary)]">{formatDateTime(session.createdAt)}</span>
                 </div>
 
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-[#8A8880]">最近活跃</span>
-                  <span className="font-mono-tabular text-[#575652]">{formatDateTime(session.updatedAt)}</span>
+                  <span className="text-[var(--ink-muted)]">最近活跃</span>
+                  <span className="font-mono-tabular text-[var(--ink-secondary)]">{formatDateTime(session.updatedAt)}</span>
                 </div>
 
                 <div className="py-2">
-                  <div className="mb-1 text-[#8A8880]">工作目录</div>
+                  <div className="mb-1 text-[var(--ink-muted)]">工作目录</div>
                   <button
                     type="button"
                     onClick={() => void pickAndSetWorkingDirectory()}
-                    className="font-mono-tabular flex w-full items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#FAF9F5] px-2 py-1 text-left text-[10px] text-[#141413] hover:border-[#1E4D9B]"
+                    className="font-mono-tabular flex w-full items-center gap-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2 py-1 text-left text-[10px] text-[var(--ink-primary)] hover:border-[var(--brand-secondary)]"
                     title={session.cwd}
                   >
-                    <FolderOpen className="h-3 w-3 shrink-0 text-[#1E4D9B]" />
+                    <FolderOpen className="h-3 w-3 shrink-0 text-[var(--brand-secondary)]" />
                     <span className="truncate">{session.cwd}</span>
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] text-[#8A8880]">尚未选择会话</p>
+              <p className="text-[11px] text-[var(--ink-muted)]">尚未选择会话</p>
             )}
           </section>
 
           {/* Token 与缓存统计 */}
           <section className="space-y-2">
-            <div className="text-[11px] font-semibold text-[#575652]">Token 与缓存统计</div>
-            <div className="space-y-2.5 rounded border border-[#D8D5CB] bg-[#F4F3EE]/60 p-3 text-[11px]">
+            <div className="text-[11px] font-semibold text-[var(--ink-secondary)]">Token 与缓存统计</div>
+            <div className="space-y-2.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)]/60 p-3 text-[11px]">
               <div className="flex items-baseline justify-between">
-                <span className="text-[#8A8880]">缓存命中率</span>
-                <span className="font-mono-tabular text-base font-semibold text-[#246A4D]">
+                <span className="text-[var(--ink-muted)]">缓存命中率</span>
+                <span className="font-mono-tabular text-base font-semibold text-[var(--status-ok)]">
                   {totalInput > 0 ? `${cacheRate}%` : '--'}
                 </span>
               </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-sm bg-[#ECEAE2]">
+              <div className="h-1.5 w-full overflow-hidden rounded-sm bg-[var(--bg-recessed)]">
                 <div
                   style={{ width: `${Math.min(100, cacheRate)}%` }}
-                  className="h-full bg-[#246A4D]"
+                  className="h-full bg-[var(--status-ok)]"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2 pt-1 font-mono-tabular">
-                <div className="rounded border border-[#ECEAE2] bg-[#FAF9F5] px-2 py-1.5">
-                  <div className="text-[10px] text-[#8A8880]">缓存读取</div>
-                  <div className="mt-0.5 font-semibold text-[#141413]">
+                <div className="rounded border border-[var(--bg-recessed)] bg-[var(--bg-surface)] px-2 py-1.5">
+                  <div className="text-[10px] text-[var(--ink-muted)]">缓存读取</div>
+                  <div className="mt-0.5 font-semibold text-[var(--ink-primary)]">
                     {formatNum(telemetry?.cacheReadTokens ?? 0)}
                   </div>
                 </div>
-                <div className="rounded border border-[#ECEAE2] bg-[#FAF9F5] px-2 py-1.5">
-                  <div className="text-[10px] text-[#8A8880]">未缓存输入</div>
-                  <div className="mt-0.5 font-semibold text-[#141413]">
+                <div className="rounded border border-[var(--bg-recessed)] bg-[var(--bg-surface)] px-2 py-1.5">
+                  <div className="text-[10px] text-[var(--ink-muted)]">未缓存输入</div>
+                  <div className="mt-0.5 font-semibold text-[var(--ink-primary)]">
                     {formatNum(telemetry?.uncachedInputTokens ?? 0)}
                   </div>
                 </div>
-                <div className="rounded border border-[#ECEAE2] bg-[#FAF9F5] px-2 py-1.5">
-                  <div className="text-[10px] text-[#8A8880]">输出 Token</div>
-                  <div className="mt-0.5 font-semibold text-[#141413]">
+                <div className="rounded border border-[var(--bg-recessed)] bg-[var(--bg-surface)] px-2 py-1.5">
+                  <div className="text-[10px] text-[var(--ink-muted)]">输出 Token</div>
+                  <div className="mt-0.5 font-semibold text-[var(--ink-primary)]">
                     {formatNum(telemetry?.outputTokens ?? 0)}
                   </div>
                 </div>
-                <div className="rounded border border-[#ECEAE2] bg-[#FAF9F5] px-2 py-1.5">
-                  <div className="text-[10px] text-[#8A8880]">累计总计</div>
-                  <div className="mt-0.5 font-semibold text-[#141413]">{formatNum(totalTokens)}</div>
+                <div className="rounded border border-[var(--bg-recessed)] bg-[var(--bg-surface)] px-2 py-1.5">
+                  <div className="text-[10px] text-[var(--ink-muted)]">累计总计</div>
+                  <div className="mt-0.5 font-semibold text-[var(--ink-primary)]">{formatNum(totalTokens)}</div>
                 </div>
               </div>
             </div>
@@ -219,36 +219,36 @@ export function InspectorPanel() {
           {telemetry && (telemetry.surfaceTokens !== null || telemetry.systemTokens !== null) && (
             <section className="space-y-2">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="font-semibold text-[#575652]">上下文构成</span>
+                <span className="font-semibold text-[var(--ink-secondary)]">上下文构成</span>
                 {contextPct !== null && (
-                  <span className="font-mono-tabular text-[#8A8880]">{contextPct}%</span>
+                  <span className="font-mono-tabular text-[var(--ink-muted)]">{contextPct}%</span>
                 )}
               </div>
-              <div className="divide-y divide-[#ECEAE2] rounded border border-[#D8D5CB] bg-[#F4F3EE]/60 px-3 text-[11px]">
+              <div className="divide-y divide-[var(--bg-recessed)] rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)]/60 px-3 text-[11px]">
                 {telemetry.surfaceTokens !== null && telemetry.contextWindow !== null && (
                   <div className="flex items-center justify-between py-1.5">
-                    <span className="text-[#8A8880]">当前窗口</span>
-                    <span className="font-mono-tabular text-[#141413]">
+                    <span className="text-[var(--ink-muted)]">当前窗口</span>
+                    <span className="font-mono-tabular text-[var(--ink-primary)]">
                       {formatNum(telemetry.surfaceTokens)} / {formatNum(telemetry.contextWindow)}
                     </span>
                   </div>
                 )}
                 {telemetry.systemTokens !== null && (
                   <div className="flex items-center justify-between py-1.5">
-                    <span className="text-[#8A8880]">系统提示词</span>
-                    <span className="font-mono-tabular text-[#141413]">{formatNum(telemetry.systemTokens)}</span>
+                    <span className="text-[var(--ink-muted)]">系统提示词</span>
+                    <span className="font-mono-tabular text-[var(--ink-primary)]">{formatNum(telemetry.systemTokens)}</span>
                   </div>
                 )}
                 {telemetry.toolsTokens !== null && (
                   <div className="flex items-center justify-between py-1.5">
-                    <span className="text-[#8A8880]">工具定义</span>
-                    <span className="font-mono-tabular text-[#141413]">{formatNum(telemetry.toolsTokens)}</span>
+                    <span className="text-[var(--ink-muted)]">工具定义</span>
+                    <span className="font-mono-tabular text-[var(--ink-primary)]">{formatNum(telemetry.toolsTokens)}</span>
                   </div>
                 )}
                 {telemetry.messageTokens !== null && (
                   <div className="flex items-center justify-between py-1.5">
-                    <span className="text-[#8A8880]">对话消息</span>
-                    <span className="font-mono-tabular text-[#141413]">{formatNum(telemetry.messageTokens)}</span>
+                    <span className="text-[var(--ink-muted)]">对话消息</span>
+                    <span className="font-mono-tabular text-[var(--ink-primary)]">{formatNum(telemetry.messageTokens)}</span>
                   </div>
                 )}
               </div>
@@ -257,25 +257,25 @@ export function InspectorPanel() {
 
           {/* 安全策略与工作区快照 */}
           <section className="space-y-2">
-            <div className="text-[11px] font-semibold text-[#575652]">安全与运行能力</div>
-            <div className="divide-y divide-[#ECEAE2] rounded border border-[#D8D5CB] bg-[#F4F3EE]/60 px-3 text-[11px]">
+            <div className="text-[11px] font-semibold text-[var(--ink-secondary)]">安全与运行能力</div>
+            <div className="divide-y divide-[var(--bg-recessed)] rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)]/60 px-3 text-[11px]">
               <div className="flex items-center justify-between py-1.5">
-                <span className="text-[#8A8880]">沙箱权限</span>
-                <span className="text-[#141413]">{mapSandbox(telemetry?.sandboxMode)}</span>
+                <span className="text-[var(--ink-muted)]">沙箱权限</span>
+                <span className="text-[var(--ink-primary)]">{mapSandbox(telemetry?.sandboxMode)}</span>
               </div>
               <div className="flex items-center justify-between py-1.5">
-                <span className="text-[#8A8880]">审批策略</span>
-                <span className="text-[#141413]">{mapApproval(telemetry?.approvalPolicy)}</span>
+                <span className="text-[var(--ink-muted)]">审批策略</span>
+                <span className="text-[var(--ink-primary)]">{mapApproval(telemetry?.approvalPolicy)}</span>
               </div>
               <div className="flex items-center justify-between py-1.5">
-                <span className="text-[#8A8880]">工作区快照</span>
-                <span className="font-mono-tabular text-[#141413]">
+                <span className="text-[var(--ink-muted)]">工作区快照</span>
+                <span className="font-mono-tabular text-[var(--ink-primary)]">
                   {telemetry?.snapshotCount ?? 0} 个可回滚点
                 </span>
               </div>
               <div className="flex items-center justify-between py-1.5">
-                <span className="text-[#8A8880]">桥接能力</span>
-                <span className="text-[#575652]">
+                <span className="text-[var(--ink-muted)]">桥接能力</span>
+                <span className="text-[var(--ink-secondary)]">
                   {[
                     bridgeCapabilities.streamDelta && '流式',
                     bridgeCapabilities.abort && '中断',
@@ -291,40 +291,40 @@ export function InspectorPanel() {
           {/* 子代理 */}
           <section className="space-y-2">
             <div className="flex items-center justify-between text-[11px]">
-              <span className="font-semibold text-[#575652]">子代理</span>
-              <span className="font-mono-tabular text-[#8A8880]">{subagents.length}</span>
+              <span className="font-semibold text-[var(--ink-secondary)]">子代理</span>
+              <span className="font-mono-tabular text-[var(--ink-muted)]">{subagents.length}</span>
             </div>
 
             {subagents.length === 0 ? (
-              <div className="rounded border border-dashed border-[#D8D5CB] px-3 py-3 text-center text-[11px] text-[#8A8880]">
+              <div className="rounded border border-dashed border-[var(--border-hairline)] px-3 py-3 text-center text-[11px] text-[var(--ink-muted)]">
                 当前会话无子代理分支
               </div>
             ) : (
-              <ul className="relative space-y-2 border-l border-[#D8D5CB] pl-3">
+              <ul className="relative space-y-2 border-l border-[var(--border-hairline)] pl-3">
                 {subagents.map((sa) => (
                   <li
                     key={sa.childSessionId}
-                    className="relative rounded border border-[#D8D5CB] bg-[#F4F3EE]/60 px-2.5 py-2 text-[11px]"
+                    className="relative rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)]/60 px-2.5 py-2 text-[11px]"
                   >
                     <span
                       className={`absolute -left-[16.5px] top-3 h-2 w-2 rotate-45 ${
                         sa.kind === 'started'
-                          ? 'bg-[#1E4D9B] animate-pulse'
+                          ? 'bg-[var(--brand-secondary)] animate-pulse'
                           : sa.status === 'ok'
-                            ? 'bg-[#246A4D]'
-                            : 'bg-[#D13B27]'
+                            ? 'bg-[var(--status-ok)]'
+                            : 'bg-[var(--brand-primary)]'
                       }`}
                     />
                     <div className="flex items-center justify-between">
-                      <span className="font-mono-tabular font-medium text-[#141413]">
+                      <span className="font-mono-tabular font-medium text-[var(--ink-primary)]">
                         {sa.childSessionId.slice(0, 10)}
                       </span>
-                      <span className="text-[10px] text-[#575652]">
+                      <span className="text-[10px] text-[var(--ink-secondary)]">
                         {sa.kind === 'started' ? '运行中' : sa.status === 'ok' ? '已完成' : '异常'}
                       </span>
                     </div>
                     {sa.stopReason && (
-                      <div className="mt-1 text-[10px] text-[#8A8880]">停止原因：{sa.stopReason}</div>
+                      <div className="mt-1 text-[10px] text-[var(--ink-muted)]">停止原因：{sa.stopReason}</div>
                     )}
                   </li>
                 ))}
@@ -333,13 +333,13 @@ export function InspectorPanel() {
           </section>
 
           {(pendingApprovals.length > 0 || pendingQuestions.length > 0) && (
-            <section className="space-y-1.5 rounded border border-[#C4881C]/50 bg-[#C4881C]/8 p-3 text-[11px]">
-              <div className="font-semibold text-[#8E6210]">待处理操作</div>
+            <section className="space-y-1.5 rounded border border-[var(--status-warn)]/50 bg-[var(--status-warn)]/8 p-3 text-[11px]">
+              <div className="font-semibold text-[var(--status-warn-text)]">待处理操作</div>
               {pendingApprovals.length > 0 && (
-                <div className="text-[#141413]">{pendingApprovals.length} 项工具审批待确认</div>
+                <div className="text-[var(--ink-primary)]">{pendingApprovals.length} 项工具审批待确认</div>
               )}
               {pendingQuestions.length > 0 && (
-                <div className="text-[#1E4D9B]">{pendingQuestions.length} 项结构化问答待回复</div>
+                <div className="text-[var(--brand-secondary)]">{pendingQuestions.length} 项结构化问答待回复</div>
               )}
             </section>
           )}

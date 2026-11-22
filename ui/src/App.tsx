@@ -81,14 +81,14 @@ export function App() {
   }, [bootstrap])
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#F4F3EE] text-[#141413]">
+    <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-canvas)] text-[var(--ink-primary)]">
       <IconDock />
       <Sidebar />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[#D8D5CB] bg-[#F4F3EE] px-5">
+        <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-5">
           <div className="flex min-w-0 items-center gap-2.5">
-            <h2 className="truncate text-sm font-semibold tracking-tight text-[#141413]">
+            <h2 className="truncate text-sm font-semibold tracking-tight text-[var(--ink-primary)]">
               {activeView === 'plugin-panel'
                 ? (activePluginPanelLabel ?? '插件面板')
                 : activeSession
@@ -96,7 +96,7 @@ export function App() {
                   : '新建会话'}
             </h2>
             {activeSession && (
-              <span className="font-mono-tabular hidden text-[10px] text-[#8A8880] sm:inline">
+              <span className="font-mono-tabular hidden text-[10px] text-[var(--ink-muted)] sm:inline">
                 {activeSession.sessionId.slice(0, 8)}
               </span>
             )}
@@ -104,14 +104,14 @@ export function App() {
 
           <div className="flex items-center gap-2.5">
             {/* Bauhaus Segmented View Switcher */}
-            <div className="inline-flex rounded border border-[#D8D5CB] bg-[#ECEAE2] p-0.5">
+            <div className="inline-flex rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] p-0.5">
               <button
                 type="button"
                 onClick={() => setActiveView('studio')}
                 className={`font-mono-tabular rounded px-2.5 py-0.5 text-[11px] font-medium transition ${
                   activeView === 'studio'
-                    ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
-                    : 'text-[#575652] hover:text-[#141413]'
+                    ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+                    : 'text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]'
                 }`}
               >
                 对话
@@ -121,8 +121,8 @@ export function App() {
                 onClick={() => setActiveView('trajectory')}
                 className={`font-mono-tabular rounded px-2.5 py-0.5 text-[11px] font-medium transition ${
                   activeView === 'trajectory'
-                    ? 'bg-[#FAF9F5] text-[#141413] ring-1 ring-[#D8D5CB]'
-                    : 'text-[#575652] hover:text-[#141413]'
+                    ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+                    : 'text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]'
                 }`}
               >
                 轨迹
@@ -135,8 +135,8 @@ export function App() {
               title={inspectorOpen ? '隐藏详情面板' : '展开详情面板'}
               className={`rounded border p-1.5 transition ${
                 inspectorOpen
-                  ? 'border-[#141413] bg-[#141413] text-[#FAF9F5]'
-                  : 'border-[#D8D5CB] bg-[#FAF9F5] text-[#575652] hover:border-[#141413] hover:text-[#141413]'
+                  ? 'border-[var(--ink-primary)] bg-[var(--ink-primary)] text-[var(--bg-surface)]'
+                  : 'border-[var(--border-hairline)] bg-[var(--bg-surface)] text-[var(--ink-secondary)] hover:border-[var(--ink-primary)] hover:text-[var(--ink-primary)]'
               }`}
             >
               <PanelRight className="h-3.5 w-3.5" />
@@ -145,15 +145,15 @@ export function App() {
         </header>
 
         {errorBanner && (
-          <div className="flex items-center justify-between border-b border-[#D13B27]/40 bg-[#D13B27]/8 px-5 py-2 text-xs text-[#8f2214]">
+          <div className="flex items-center justify-between border-b border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 px-5 py-2 text-xs text-[var(--status-danger-text)]">
             <span className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-[#D13B27]" />
+              <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" />
               {errorBanner}
             </span>
             <button
               type="button"
               onClick={clearError}
-              className="rounded p-0.5 text-[#D13B27] hover:bg-[#D13B27]/15"
+              className="rounded p-0.5 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/15"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -161,12 +161,12 @@ export function App() {
         )}
 
         {noticeBanner && (
-          <div className="flex items-center justify-between border-b border-[#246A4D]/35 bg-[#246A4D]/10 px-5 py-2 text-xs text-[#194c37]">
+          <div className="flex items-center justify-between border-b border-[var(--status-ok)]/35 bg-[var(--status-ok)]/10 px-5 py-2 text-xs text-[var(--status-ok-text)]">
             <span>{noticeBanner}</span>
             <button
               type="button"
               onClick={clearNotice}
-              className="rounded p-0.5 text-[#246A4D] hover:bg-[#246A4D]/15"
+              className="rounded p-0.5 text-[var(--status-ok)] hover:bg-[var(--status-ok)]/15"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -178,7 +178,7 @@ export function App() {
         ) : activeView === 'trajectory' ? (
           <TrajectoryView />
         ) : activeView === 'plugin-panel' && activePluginPanelKey ? (
-          <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F4F3EE]">
+          <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--bg-canvas)]">
             <DshSlot
               name="main"
               slotKey={activePluginPanelKey}

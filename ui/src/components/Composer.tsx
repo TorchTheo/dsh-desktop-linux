@@ -256,13 +256,13 @@ export function Composer({ centered = false }: ComposerProps) {
           <div
             role="listbox"
             aria-label="斜杠指令补全"
-            className="absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-lg border border-[#C2BEB2] bg-[#FAF9F5]"
+            className="absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)]"
           >
-            <div className="flex items-center justify-between border-b border-[#ECEAE2] bg-[#F4F3EE] px-3 py-1.5 text-[11px] text-[#8A8880]">
+            <div className="flex items-center justify-between border-b border-[var(--bg-recessed)] bg-[var(--bg-canvas)] px-3 py-1.5 text-[11px] text-[var(--ink-muted)]">
               <span>指令与技能（共 {matchingCommands.length} 项）</span>
               <span>↑↓ 选择 · Tab/Enter 选中 · Esc 关闭</span>
             </div>
-            <ul className="max-h-72 divide-y divide-[#ECEAE2] overflow-y-auto py-0.5">
+            <ul className="max-h-72 divide-y divide-[var(--bg-recessed)] overflow-y-auto py-0.5">
               {matchingCommands.map((item, idx) => {
                 const selected = idx === slashIndex
                 return (
@@ -278,25 +278,25 @@ export function Composer({ centered = false }: ComposerProps) {
                       }}
                       className={`flex w-full items-center justify-between gap-4 px-3.5 py-2 text-left text-xs transition ${
                         selected
-                          ? 'bg-[#ECEAE2] text-[#141413]'
-                          : 'bg-[#FAF9F5] text-[#575652] hover:bg-[#F4F3EE]'
+                          ? 'bg-[var(--bg-recessed)] text-[var(--ink-primary)]'
+                          : 'bg-[var(--bg-surface)] text-[var(--ink-secondary)] hover:bg-[var(--bg-canvas)]'
                       }`}
                     >
                       <div className="flex min-w-0 shrink-0 items-center gap-1.5">
                         <span
                           className={`font-mono-tabular font-semibold ${
-                            item.kind === 'skill' ? 'text-[#246A4D]' : 'text-[#1E4D9B]'
+                            item.kind === 'skill' ? 'text-[var(--status-ok)]' : 'text-[var(--brand-secondary)]'
                           }`}
                         >
                           {item.cmd}
                         </span>
                         {item.badge && (
-                          <span className="rounded border border-[#D8D5CB] bg-[#F4F3EE] px-1 py-0.2 font-mono-tabular text-[9px] text-[#8A8880]">
+                          <span className="rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-1 py-0.2 font-mono-tabular text-[9px] text-[var(--ink-muted)]">
                             {item.badge}
                           </span>
                         )}
                       </div>
-                      <span className="min-w-0 flex-1 truncate text-right text-[#575652]">
+                      <span className="min-w-0 flex-1 truncate text-right text-[var(--ink-secondary)]">
                         {item.desc}
                       </span>
                     </button>
@@ -308,18 +308,18 @@ export function Composer({ centered = false }: ComposerProps) {
         )}
 
         {activeJobs.length > 0 && activeSessionId && (
-          <div className="mb-2 overflow-hidden rounded-lg border border-[#246A4D]/35 bg-[#FAF9F5]">
+          <div className="mb-2 overflow-hidden rounded-lg border border-[var(--status-ok)]/35 bg-[var(--bg-surface)]">
             <button
               type="button"
               onClick={() => setJobsExpanded((v) => !v)}
-              className="flex w-full items-center justify-between bg-[#246A4D]/8 px-3 py-1.5 font-mono-tabular text-[11px] text-[#1d543d] transition hover:bg-[#246A4D]/12"
+              className="flex w-full items-center justify-between bg-[var(--status-ok)]/8 px-3 py-1.5 font-mono-tabular text-[11px] text-[var(--status-ok-text)] transition hover:bg-[var(--status-ok)]/12"
             >
               <span className="inline-flex items-center gap-1.5 font-medium">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-[#246A4D]" />
+                <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--status-ok)]" />
                 <Terminal className="h-3 w-3" />
                 后台进程 · {activeJobs.length} 个运行中
               </span>
-              <span className="inline-flex items-center gap-1 text-[10px] text-[#575652]">
+              <span className="inline-flex items-center gap-1 text-[10px] text-[var(--ink-secondary)]">
                 <span>停止/打断对话不会终止后台进程</span>
                 {jobsExpanded ? (
                   <ChevronDown className="h-3 w-3" />
@@ -329,14 +329,14 @@ export function Composer({ centered = false }: ComposerProps) {
               </span>
             </button>
             {jobsExpanded && (
-              <ul className="divide-y divide-[#ECEAE2] border-t border-[#ECEAE2]">
+              <ul className="divide-y divide-[var(--bg-recessed)] border-t border-[var(--bg-recessed)]">
                 {activeJobs.map((job) => (
                   <li
                     key={job.jobId}
-                    className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-[#141413]"
+                    className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-[var(--ink-primary)]"
                   >
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="font-mono-tabular shrink-0 rounded border border-[#246A4D]/30 bg-[#246A4D]/8 px-1.5 py-0.5 text-[10px] text-[#1d543d]">
+                      <span className="font-mono-tabular shrink-0 rounded border border-[var(--status-ok)]/30 bg-[var(--status-ok)]/8 px-1.5 py-0.5 text-[10px] text-[var(--status-ok-text)]">
                         {job.kind}
                       </span>
                       <span className="font-mono-tabular truncate text-[11px]">
@@ -347,7 +347,7 @@ export function Composer({ centered = false }: ComposerProps) {
                       type="button"
                       onClick={() => void killSessionJob(activeSessionId, job.jobId)}
                       title="手动终止此后台进程"
-                      className="shrink-0 rounded border border-[#D8D5CB] bg-[#F4F3EE] px-2 py-0.5 text-[10px] text-[#575652] transition hover:border-[#D13B27] hover:bg-[#D13B27]/10 hover:text-[#D13B27]"
+                      className="shrink-0 rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-2 py-0.5 text-[10px] text-[var(--ink-secondary)] transition hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]"
                     >
                       终止
                     </button>
@@ -359,31 +359,31 @@ export function Composer({ centered = false }: ComposerProps) {
         )}
 
         {queuedMessages.length > 0 && activeSessionId && (
-          <div className="mb-2 overflow-hidden rounded-lg border border-[#1E4D9B]/35 bg-[#FAF9F5]">
-            <div className="flex items-center justify-between border-b border-[#ECEAE2] bg-[#1E4D9B]/8 px-3 py-1.5 font-mono-tabular text-[11px] text-[#1E4D9B]">
+          <div className="mb-2 overflow-hidden rounded-lg border border-[var(--brand-secondary)]/35 bg-[var(--bg-surface)]">
+            <div className="flex items-center justify-between border-b border-[var(--bg-recessed)] bg-[var(--brand-secondary)]/8 px-3 py-1.5 font-mono-tabular text-[11px] text-[var(--brand-secondary)]">
               <span className="inline-flex items-center gap-1.5 font-medium">
                 <Clock className="h-3 w-3" />
                 待发送队列 · {queuedMessages.length} 条
               </span>
-              <span className="text-[10px] text-[#575652]">
+              <span className="text-[10px] text-[var(--ink-secondary)]">
                 {isRunning ? '当前回合结束后自动依次发送' : '已暂停自动发送，可点击立即发送或编辑'}
               </span>
             </div>
-            <ul className="divide-y divide-[#ECEAE2]">
+            <ul className="divide-y divide-[var(--bg-recessed)]">
               {queuedMessages.map((item, idx) => (
                 <li
                   key={item.id}
-                  className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-[#141413]"
+                  className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-[var(--ink-primary)]"
                 >
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="font-mono-tabular shrink-0 rounded border border-[#D8D5CB] bg-[#F4F3EE] px-1 text-[10px] text-[#575652]">
+                    <span className="font-mono-tabular shrink-0 rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)] px-1 text-[10px] text-[var(--ink-secondary)]">
                       #{idx + 1}
                     </span>
                     <span className="truncate">
                       {item.text || '（图片消息）'}
                     </span>
                     {item.images.length > 0 && (
-                      <span className="font-mono-tabular shrink-0 text-[10px] text-[#8A8880]">
+                      <span className="font-mono-tabular shrink-0 text-[10px] text-[var(--ink-muted)]">
                         [{item.images.length} 图]
                       </span>
                     )}
@@ -393,7 +393,7 @@ export function Composer({ centered = false }: ComposerProps) {
                       type="button"
                       onClick={() => editQueuedMessage(activeSessionId, item.id)}
                       title="撤回至输入框编辑"
-                      className="rounded p-1 text-[#575652] transition hover:bg-[#ECEAE2] hover:text-[#141413]"
+                      className="rounded p-1 text-[var(--ink-secondary)] transition hover:bg-[var(--bg-recessed)] hover:text-[var(--ink-primary)]"
                     >
                       <Pencil className="h-3 w-3" />
                     </button>
@@ -401,7 +401,7 @@ export function Composer({ centered = false }: ComposerProps) {
                       type="button"
                       onClick={() => void flushQueuedMessage(activeSessionId, item.id)}
                       title="立即发送（插队）"
-                      className="rounded p-1 text-[#1E4D9B] transition hover:bg-[#1E4D9B]/10"
+                      className="rounded p-1 text-[var(--brand-secondary)] transition hover:bg-[var(--brand-secondary)]/10"
                     >
                       <SendHorizontal className="h-3 w-3" />
                     </button>
@@ -409,7 +409,7 @@ export function Composer({ centered = false }: ComposerProps) {
                       type="button"
                       onClick={() => removeQueuedMessage(activeSessionId, item.id)}
                       title="从队列移除"
-                      className="rounded p-1 text-[#8A8880] transition hover:bg-[#D13B27]/10 hover:text-[#D13B27]"
+                      className="rounded p-1 text-[var(--ink-muted)] transition hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -420,13 +420,13 @@ export function Composer({ centered = false }: ComposerProps) {
           </div>
         )}
 
-        <div className="rounded-lg border border-[#C2BEB2] bg-[#FAF9F5] transition focus-within:border-[#141413]">
+        <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] transition focus-within:border-[var(--ink-primary)]">
           {images.length > 0 && (
-            <div className="flex flex-wrap gap-2 border-b border-[#D8D5CB] px-3 pt-3 pb-2">
+            <div className="flex flex-wrap gap-2 border-b border-[var(--border-hairline)] px-3 pt-3 pb-2">
               {images.map((img, idx) => (
                 <div
                   key={idx}
-                  className="relative overflow-hidden rounded border border-[#D8D5CB] bg-[#ECEAE2]"
+                  className="relative overflow-hidden rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)]"
                 >
                   <img
                     src={`data:${img.mimeType};base64,${img.data}`}
@@ -436,7 +436,7 @@ export function Composer({ centered = false }: ComposerProps) {
                   <button
                     type="button"
                     onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
-                    className="absolute right-0.5 top-0.5 rounded bg-[#141413]/80 p-0.5 text-[#FAF9F5] hover:bg-[#D13B27]"
+                    className="absolute right-0.5 top-0.5 rounded bg-[var(--ink-primary)]/80 p-0.5 text-[var(--bg-surface)] hover:bg-[var(--brand-primary)]"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -460,10 +460,10 @@ export function Composer({ centered = false }: ComposerProps) {
                   ? 'Agent 正在运行，输入内容将加入待发送队列（完成后自动发送）...'
                   : '输入指令、技术问题，或输入 / 查看可用指令...'
             }
-            className="max-h-44 w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm leading-relaxed text-[#141413] placeholder-[#8A8880] focus:outline-none disabled:opacity-50"
+            className="max-h-44 w-full resize-none bg-transparent px-4 pt-3 pb-2 text-sm leading-relaxed text-[var(--ink-primary)] placeholder-[var(--ink-muted)] focus:outline-none disabled:opacity-50"
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#ECEAE2] px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--bg-recessed)] px-3 py-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <input
                 ref={fileInputRef}
@@ -481,7 +481,7 @@ export function Composer({ centered = false }: ComposerProps) {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled}
                 title="附加图片（支持直接粘贴截图）"
-                className="inline-flex h-7 w-7 items-center justify-center rounded border border-[#D8D5CB] bg-[#ECEAE2] text-[#575652] transition hover:border-[#141413] hover:text-[#141413] disabled:opacity-40"
+                className="inline-flex h-7 w-7 items-center justify-center rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] text-[var(--ink-secondary)] transition hover:border-[var(--ink-primary)] hover:text-[var(--ink-primary)] disabled:opacity-40"
               >
                 <ImagePlus className="h-3.5 w-3.5" />
               </button>
@@ -489,10 +489,10 @@ export function Composer({ centered = false }: ComposerProps) {
               <button
                 type="button"
                 onClick={() => void pickAndSetWorkingDirectory()}
-                className="inline-flex h-7 max-w-[180px] items-center gap-1.5 rounded border border-[#D8D5CB] bg-[#ECEAE2] px-2 text-xs text-[#141413] transition hover:border-[#141413]"
+                className="inline-flex h-7 max-w-[180px] items-center gap-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] px-2 text-xs text-[var(--ink-primary)] transition hover:border-[var(--ink-primary)]"
                 title={cwd || '选择工作目录'}
               >
-                <FolderOpen className="h-3.5 w-3.5 shrink-0 text-[#575652]" />
+                <FolderOpen className="h-3.5 w-3.5 shrink-0 text-[var(--ink-secondary)]" />
                 <span className="truncate">{cwd ? basename(cwd) : '选择工作目录'}</span>
               </button>
 
@@ -507,7 +507,7 @@ export function Composer({ centered = false }: ComposerProps) {
                   type="button"
                   onClick={() => void abortSession()}
                   disabled={isAborting}
-                  className="inline-flex h-7 items-center gap-1 rounded bg-[#D13B27] px-2.5 text-xs font-medium text-[#FAF9F5] transition hover:bg-[#b5301f] disabled:opacity-50"
+                  className="inline-flex h-7 items-center gap-1 rounded bg-[var(--brand-primary)] px-2.5 text-xs font-medium text-white transition hover:bg-[var(--brand-hover)] disabled:opacity-50"
                   title="停止生成"
                 >
                   <Square className="h-3 w-3 fill-current" />
@@ -525,10 +525,10 @@ export function Composer({ centered = false }: ComposerProps) {
                 type="button"
                 onClick={handleSend}
                 disabled={disabled || (!text.trim() && images.length === 0)}
-                className={`inline-flex h-7 items-center justify-center rounded text-[#FAF9F5] transition disabled:cursor-not-allowed disabled:bg-[#ECEAE2] disabled:text-[#8A8880] ${
+                className={`inline-flex h-7 items-center justify-center rounded text-[var(--bg-surface)] transition disabled:cursor-not-allowed disabled:bg-[var(--bg-recessed)] disabled:text-[var(--ink-muted)] ${
                   isRunning
-                    ? 'gap-1 bg-[#1E4D9B] px-2.5 text-xs font-medium hover:bg-[#173d7c]'
-                    : 'w-7 bg-[#D13B27] hover:bg-[#b5301f]'
+                    ? 'gap-1 bg-[var(--brand-secondary)] px-2.5 text-xs font-medium hover:bg-[var(--brand-secondary-hover)]'
+                    : 'w-7 bg-[var(--brand-primary)] hover:bg-[var(--brand-hover)]'
                 }`}
                 title={isRunning ? '加入待发送队列（Enter）' : '发送（Enter）'}
               >
@@ -547,7 +547,7 @@ export function Composer({ centered = false }: ComposerProps) {
                   type="button"
                   onClick={handleInterruptSend}
                   disabled={disabled || (!text.trim() && images.length === 0)}
-                  className="inline-flex h-7 items-center gap-1 rounded bg-[#D13B27] px-2.5 text-xs font-medium text-[#FAF9F5] transition hover:bg-[#b5301f] disabled:cursor-not-allowed disabled:bg-[#ECEAE2] disabled:text-[#8A8880]"
+                  className="inline-flex h-7 items-center gap-1 rounded bg-[var(--brand-primary)] px-2.5 text-xs font-medium text-white transition hover:bg-[var(--brand-hover)] disabled:cursor-not-allowed disabled:bg-[var(--bg-recessed)] disabled:text-[var(--ink-muted)]"
                   title="强行打断当前回复并立即发送（Ctrl+Enter，不终止后台进程）"
                 >
                   <Zap className="h-3 w-3" />
@@ -559,24 +559,24 @@ export function Composer({ centered = false }: ComposerProps) {
         </div>
 
         {!centered && (
-          <footer className="mt-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 font-mono-tabular text-[10.5px] text-[#8A8880]">
+          <footer className="mt-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 font-mono-tabular text-[10.5px] text-[var(--ink-muted)]">
             <div className="flex flex-wrap items-center gap-3">
               <span title={telemetry ? `缓存读取 ${telemetry.cacheReadTokens} / 未缓存输入 ${telemetry.uncachedInputTokens}` : '暂无数据'}>
                 缓存命中{" "}
-                <strong className={cacheRate !== null && cacheRate >= 50 ? 'text-[#246A4D]' : 'text-[#575652]'}>
+                <strong className={cacheRate !== null && cacheRate >= 50 ? 'text-[var(--status-ok)]' : 'text-[var(--ink-secondary)]'}>
                   {cacheRate !== null ? `${cacheRate}%` : '--'}
                 </strong>
               </span>
               <span>
-                输入 <strong className="text-[#575652]">{telemetry ? formatCompactTokens(totalInput) : '--'}</strong>
+                输入 <strong className="text-[var(--ink-secondary)]">{telemetry ? formatCompactTokens(totalInput) : '--'}</strong>
               </span>
               <span>
-                输出 <strong className="text-[#575652]">{telemetry ? formatCompactTokens(telemetry.outputTokens) : '--'}</strong>
+                输出 <strong className="text-[var(--ink-secondary)]">{telemetry ? formatCompactTokens(telemetry.outputTokens) : '--'}</strong>
               </span>
               {contextUsed !== null ? (
                 <span>
                   上下文{" "}
-                  <strong className="text-[#575652]">
+                  <strong className="text-[var(--ink-secondary)]">
                     {formatCompactTokens(contextUsed)}
                     {contextMax ? ` / ${formatCompactTokens(contextMax)}` : ''}
                     {contextPct !== null ? ` (${contextPct}%)` : ''}
