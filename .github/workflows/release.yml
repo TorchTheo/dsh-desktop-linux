@@ -48,7 +48,7 @@ jobs:
       - name: Build UI & Debian package
         run: |
           pnpm --dir ui install --frozen-lockfile
-          pnpm --dir ui build
+          cd src-tauri
           cargo tauri build --bundles deb
 
       - name: Upload .deb artifact

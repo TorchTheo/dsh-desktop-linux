@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-4D6BFE.svg)](LICENSE)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux%20x86__64-1D2433.svg)](#系统要求)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.x-24C8DB.svg)](https://v2.tauri.app/)
-[![CI](https://github.com/ctrlsea/dsh-desktop-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/ctrlsea/dsh-desktop-linux/actions/workflows/ci.yml)
+[![CI](https://github.com/TorchTheo/dsh-desktop-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/TorchTheo/dsh-desktop-linux/actions/workflows/ci.yml)
 
 </div>
 
@@ -66,7 +66,7 @@
 
 ### 方式一：下载预编译 `.deb`（推荐）
 
-前往 [Releases](https://github.com/ctrlsea/dsh-desktop-linux/releases) 页面下载最新 `dsh-desktop_*_amd64.deb`：
+前往 [Releases](https://github.com/TorchTheo/dsh-desktop-linux/releases) 页面下载最新 `dsh-desktop_*_amd64.deb`：
 
 ```bash
 sudo apt install ./dsh-desktop_*_amd64.deb
@@ -75,7 +75,7 @@ sudo apt install ./dsh-desktop_*_amd64.deb
 ### 方式二：从源码本地构建 `.deb`
 
 ```bash
-git clone https://github.com/ctrlsea/dsh-desktop-linux.git
+git clone https://github.com/TorchTheo/dsh-desktop-linux.git
 cd dsh-desktop-linux
 
 # 安装前端依赖
