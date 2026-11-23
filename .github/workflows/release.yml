@@ -49,7 +49,7 @@ jobs:
         run: |
           pnpm --dir ui install --frozen-lockfile
           pnpm --dir ui build
-          cargo tauri build --manifest-path src-tauri/Cargo.toml --bundles deb
+          cargo tauri build --bundles deb
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4

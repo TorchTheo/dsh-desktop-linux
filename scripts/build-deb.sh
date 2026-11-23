@@ -16,7 +16,7 @@ done
 cd -- "$REPO_ROOT/ui"
 pnpm build
 
-cd -- "$REPO_ROOT/src-tauri"
+cd -- "$REPO_ROOT"
 cargo tauri build --bundles deb
 
 printf 'Debian packages:\n'
