@@ -9,6 +9,7 @@ mod state;
 pub mod storage;
 
 use std::path::Path;
+use std::time::Duration;
 
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
@@ -16,7 +17,10 @@ use tokio::sync::mpsc;
 
 use crate::{
     config::AppConfig,
-    domain::{BridgeCapabilities, HostRuntimeInfo, SessionRunStatus, UiSessionEvent, WorkerStatus},
+    domain::{
+        BridgeCapabilities, HostRuntimeInfo, SessionRunStatus, StreamDeltaEvent, UiSessionEvent,
+        WorkerStatus,
+    },
     native::{notify, tray},
     protocol::BackendEvent,
     state::AppState,
@@ -135,9 +139,68 @@ pub fn run() {
         });
 }
 
+#[derive(Default)]
+struct StreamDeltaCoalescer {
+    pending: Vec<StreamDeltaEvent>,
+}
+
+impl StreamDeltaCoalescer {
+    fn push(&mut self, event: StreamDeltaEvent) {
+        if let Some(pending) = self.pending.iter_mut().find(|pending| {
+            pending.session_id == event.session_id && pending.block_type == event.block_type
+        }) {
+            if event.reset {
+                *pending = event;
+            } else {
+                pending.delta.push_str(&event.delta);
+            }
+        } else {
+            self.pending.push(event);
+        }
+    }
+
+    fn drain(&mut self) -> impl Iterator<Item = StreamDeltaEvent> + '_ {
+        self.pending.drain(..)
+    }
+
+    fn flush(&mut self, app: &AppHandle) {
+        for event in self.drain() {
+            if let Err(error) = app.emit("dsh://stream-delta", event) {
+                tracing::warn!(%error, "Could not emit backend event");
+            }
+        }
+    }
+}
+
 async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<BackendEvent>) {
     let state = app.state::<AppState>();
-    while let Some(event) = events.recv().await {
+    let mut stream_deltas = StreamDeltaCoalescer::default();
+    let mut timer = None;
+    loop {
+        let event = match timer.as_mut() {
+            Some(sleep) => tokio::select! {
+                biased;
+                _ = sleep => {
+                    stream_deltas.flush(&app);
+                    timer = None;
+                    continue;
+                }
+                event = events.recv() => event,
+            },
+            None => events.recv().await,
+        };
+        let Some(event) = event else {
+            stream_deltas.flush(&app);
+            break;
+        };
+        if let BackendEvent::StreamDelta(event) = event {
+            timer.get_or_insert_with(|| Box::pin(tokio::time::sleep(Duration::from_millis(40))));
+            stream_deltas.push(event);
+            continue;
+        }
+        stream_deltas.flush(&app);
+        timer = None;
+
         let result = match event {
             BackendEvent::WorkerStatus(status) => {
                 *state.worker_status.write().unwrap() = status.clone();
@@ -171,7 +234,7 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
                 *state.host_info.write().unwrap() = info.clone();
                 app.emit("dsh://host-info", info)
             }
-            BackendEvent::StreamDelta(event) => app.emit("dsh://stream-delta", event),
+            BackendEvent::StreamDelta(_) => unreachable!(),
             BackendEvent::SessionStatus { session_id, status } => {
                 let mut completed = false;
                 state.update_session(&session_id, |session| {
@@ -241,5 +304,51 @@ async fn forward_events(app: AppHandle, mut events: mpsc::UnboundedReceiver<Back
         if let Err(error) = result {
             tracing::warn!(%error, "Could not emit backend event");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coalesces_stream_deltas_in_first_seen_order() {
+        let mut coalescer = StreamDeltaCoalescer::default();
+        for (session_id, block_type, delta, reset) in [
+            ("first", "text", "old", false),
+            ("first", "thinking", "one", false),
+            ("second", "text", "separate", false),
+            ("first", "thinking", " two", false),
+            ("first", "text", "new", true),
+            ("first", "text", " text", false),
+        ] {
+            coalescer.push(StreamDeltaEvent {
+                session_id: session_id.into(),
+                block_type: block_type.into(),
+                delta: delta.into(),
+                reset,
+            });
+        }
+
+        let pending: Vec<_> = coalescer.drain().collect();
+        let actual: Vec<_> = pending
+            .iter()
+            .map(|event| {
+                (
+                    event.session_id.as_str(),
+                    event.block_type.as_str(),
+                    event.delta.as_str(),
+                    event.reset,
+                )
+            })
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                ("first", "text", "new text", true),
+                ("first", "thinking", "one two", false),
+                ("second", "text", "separate", false),
+            ]
+        );
     }
 }
