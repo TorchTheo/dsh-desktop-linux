@@ -261,6 +261,7 @@ pub(crate) async fn load_session_history(
                 messages: Vec::new(),
                 provider: None,
                 model: None,
+                agent_preset: None,
                 telemetry: crate::domain::SessionTelemetry {
                     snapshot_count,
                     ..Default::default()

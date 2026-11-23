@@ -418,6 +418,8 @@ pub struct UiSessionDetail {
     pub provider: Option<String>,
     pub model: Option<String>,
     #[serde(default)]
+    pub agent_preset: Option<String>,
+    #[serde(default)]
     pub telemetry: SessionTelemetry,
 }
 

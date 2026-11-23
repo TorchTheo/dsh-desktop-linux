@@ -35,12 +35,7 @@ pub(super) fn read_log(path: &Path) -> io::Result<impl Iterator<Item = io::Resul
     Ok(io::BufReader::new(decoder).split(b'\n'))
 }
 
-fn cached_telemetry(cache_path: &Path) -> (SessionTelemetry, bool) {
-    let cache = fs::read(cache_path)
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
-        .unwrap_or_default();
-    let rows = &cache["record"]["rows"];
+fn cached_telemetry(rows: &Value) -> (SessionTelemetry, bool) {
     let totals = &rows["tokenUsage"]["val"]["totals"];
     let pressure = &rows["contextPressure"]["val"];
     let breakdown = &rows["contextBreakdown"]["val"]["breakdown"];
@@ -77,13 +72,19 @@ pub fn load_session_transcript(
     let cache_path = cache_directory(dsh_home).join(format!("{session_id}.json"));
     let cached = flags.cached_summary(session_id, &cache_path);
     let has_cache = cached.is_some();
-    let (telemetry, has_cached_usage) = cached_telemetry(&cache_path);
+    let cache = fs::read(&cache_path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+        .unwrap_or_default();
+    let rows = &cache["record"]["rows"];
+    let (telemetry, has_cached_usage) = cached_telemetry(rows);
     let mut detail = UiSessionDetail {
         session: cached
             .unwrap_or_else(|| flags.summary(session_id, &Value::Null, &Value::Null, &path)),
         messages: Vec::new(),
         provider: None,
         model: None,
+        agent_preset: rows["agentPreset"]["val"].as_str().map(str::to_owned),
         telemetry,
     };
 
@@ -117,9 +118,23 @@ pub fn load_session_transcript(
             }
             Some("deliverables/presented") => Some("assistant"),
             Some("tool/result") => Some("tool"),
-            Some("session") if !has_cache => {
-                detail.session.created_at = event["createdAt"].as_u64().unwrap_or_default();
-                detail.session.cwd = event["cwd"].as_str().unwrap_or_default().into();
+            Some("session") => {
+                if !has_cache {
+                    detail.session.created_at = event["createdAt"].as_u64().unwrap_or_default();
+                    detail.session.cwd = event["cwd"].as_str().unwrap_or_default().into();
+                }
+                if let Some(preset) = event["agentPreset"]
+                    .as_str()
+                    .or_else(|| event["meta"]["agentPreset"].as_str())
+                {
+                    detail.agent_preset = Some(preset.into());
+                }
+                None
+            }
+            Some("agent-preset/selected") => {
+                if let Some(preset) = data["agentPreset"].as_str() {
+                    detail.agent_preset = Some(preset.into());
+                }
                 None
             }
             Some("session/title") => {
@@ -190,6 +205,34 @@ mod tests {
                 mime_type: Some("image/png".into()),
             }]
         );
+    }
+
+    #[test]
+    fn loads_agent_preset_from_cache_header_and_selection() {
+        let home = TestHome::new();
+        let session_id = "presets";
+        let header = r#"{"type":"session","cwd":"/work","createdAt":10,"agentPreset":"standard","meta":{"agentPreset":"legacy"}}"#;
+        let selected = r#"{"type":"agent-preset/selected","data":{"agentPreset":"redteam"}}"#;
+        let assert_preset = |log: &str, expected| {
+            home.write_log(session_id, log);
+            let detail = load_session_transcript(&home.0, session_id).unwrap();
+            assert_eq!(detail.agent_preset.as_deref(), expected);
+        };
+
+        assert_preset(header, Some("standard"));
+        assert_preset(&format!("{header}\n{selected}"), Some("redteam"));
+
+        home.write(
+            "storages/session_projcache/sessions/presets.json",
+            br#"{"record":{"rows":{"agentPreset":{"val":"cached"}}}}"#,
+        );
+        assert_preset(r#"{"type":"session"}"#, Some("cached"));
+        assert_preset(
+            r#"{"type":"session","meta":{"agentPreset":"legacy"}}"#,
+            Some("legacy"),
+        );
+        assert_preset(header, Some("standard"));
+        assert_preset(&format!("{header}\n{selected}"), Some("redteam"));
     }
 
     #[test]
