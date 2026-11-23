@@ -157,8 +157,11 @@ interface AppStore {
   updateConfig: (config: AppConfig) => Promise<void>
 }
 
-const pendingDeltaBuffer = new Map<string, { thinking: string; text: string; reset: boolean }>()
-let deltaFlushRaf: number | null = null
+const pendingDeltaBuffer = new Map<
+  string,
+  { thinking: string; text: string; resetThinking: boolean; resetText: boolean }
+>()
+let deltaFlushTimer: number | null = null
 
 function mergeTelemetry(
   prev: SessionTelemetry | undefined,
@@ -317,39 +320,45 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
 
       onStreamDelta: ({ sessionId, blockType, delta, reset }) => {
-        const entry = pendingDeltaBuffer.get(sessionId) ?? { thinking: '', text: '', reset: false }
-        if (reset) {
-          entry.thinking = ''
-          entry.text = ''
-          entry.reset = true
+        const entry = pendingDeltaBuffer.get(sessionId) ?? {
+          thinking: '',
+          text: '',
+          resetThinking: false,
+          resetText: false,
         }
         if (blockType === 'thinking') {
+          if (reset) {
+            entry.thinking = ''
+            entry.resetThinking = true
+          }
           entry.thinking += delta
         } else {
+          if (reset) {
+            entry.text = ''
+            entry.resetText = true
+          }
           entry.text += delta
         }
         pendingDeltaBuffer.set(sessionId, entry)
 
-        if (deltaFlushRaf === null) {
-          deltaFlushRaf = window.requestAnimationFrame(() => {
-            deltaFlushRaf = null
+        if (deltaFlushTimer === null) {
+          deltaFlushTimer = window.setTimeout(() => {
+            deltaFlushTimer = null
             if (pendingDeltaBuffer.size === 0) return
             const batch = Array.from(pendingDeltaBuffer.entries())
             pendingDeltaBuffer.clear()
             set((state) => {
               const nextMap = { ...state.streamingBySession }
               for (const [sid, chunk] of batch) {
-                const prev = chunk.reset
-                  ? { thinking: '', text: '' }
-                  : (nextMap[sid] ?? { thinking: '', text: '' })
+                const prev = nextMap[sid] ?? { thinking: '', text: '' }
                 nextMap[sid] = {
-                  thinking: prev.thinking + chunk.thinking,
-                  text: prev.text + chunk.text,
+                  thinking: (chunk.resetThinking ? '' : prev.thinking) + chunk.thinking,
+                  text: (chunk.resetText ? '' : prev.text) + chunk.text,
                 }
               }
               return { streamingBySession: nextMap }
             })
-          })
+          }, 32)
         }
       },
 
@@ -361,6 +370,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           const nextStreaming = { ...state.streamingBySession }
           let nextQueued = state.queuedMessagesBySession
           if (status === 'idle') {
+            pendingDeltaBuffer.delete(sessionId)
             delete nextStreaming[sessionId]
             const queue = state.queuedMessagesBySession[sessionId] ?? []
             if (!wasAborting && queue.length > 0) {
@@ -392,6 +402,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
       onSessionEvent: (event: UiSessionEvent) => {
         if (event.kind === 'message') {
+          pendingDeltaBuffer.delete(event.sessionId)
           set((state) => {
             const list = state.messagesBySession[event.sessionId] ?? []
             const exists = list.some((m) => m.id === event.message.id)

@@ -479,6 +479,30 @@ const QUICK_STARTS = [
 ]
 
 
+function useThrottledValue<T>(value: T, intervalMs: number): T {
+  const [throttled, setThrottled] = useState(value)
+  const lastUpdatedRef = useRef(0)
+
+  useEffect(() => {
+    const now = Date.now()
+    const elapsed = now - lastUpdatedRef.current
+    if (elapsed >= intervalMs) {
+      lastUpdatedRef.current = now
+      setThrottled(value)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      lastUpdatedRef.current = Date.now()
+      setThrottled(value)
+    }, intervalMs - elapsed)
+    return () => window.clearTimeout(timer)
+  }, [value, intervalMs])
+
+  return throttled
+}
+
+const STREAM_MARKDOWN_CHAR_LIMIT = 2000
+
 const StreamingBubble = memo(function StreamingBubble({
   sessionId,
   isRunning,
@@ -489,17 +513,24 @@ const StreamingBubble = memo(function StreamingBubble({
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }) {
   const streaming = useAppStore((s) => (sessionId ? s.streamingBySession[sessionId] : undefined))
+  const rawText = streaming?.text ?? ''
+  const useLightweightStream = rawText.length > STREAM_MARKDOWN_CHAR_LIMIT
+  const throttledMarkdownText = useThrottledValue(useLightweightStream ? '' : rawText, 120)
+  const lastScrollAtRef = useRef(0)
 
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
+    const now = Date.now()
+    if (now - lastScrollAtRef.current < 100) return
+    lastScrollAtRef.current = now
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    if (distFromBottom < 200) {
+    if (distFromBottom < 220) {
       el.scrollTop = el.scrollHeight
     }
-  }, [streaming?.text.length, streaming?.thinking.length, isRunning, scrollContainerRef])
+  }, [rawText.length, streaming?.thinking.length, isRunning, scrollContainerRef])
 
-  if (streaming?.thinking || streaming?.text) {
+  if (streaming?.thinking || rawText) {
     return (
       <div className="flex items-start justify-start gap-2.5">
         <div
@@ -509,14 +540,20 @@ const StreamingBubble = memo(function StreamingBubble({
           <Bot className="h-3.5 w-3.5 animate-pulse stroke-[1.9]" />
         </div>
         <article className="min-w-0 flex-1 max-w-[90%]">
-          {streaming.thinking && (
+          {streaming?.thinking && (
             <ThinkingBlock text={streaming.thinking} defaultOpen streaming />
           )}
-          {streaming.text && (
+          {rawText && (
             <div className="markdown-body text-[15.5px]">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {streaming.text}
-              </ReactMarkdown>
+              {useLightweightStream ? (
+                <div className="whitespace-pre-wrap break-words leading-relaxed text-[var(--ink-primary)]">
+                  {rawText}
+                </div>
+              ) : (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {throttledMarkdownText || rawText}
+                </ReactMarkdown>
+              )}
               <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-[var(--brand-primary)] align-middle" />
             </div>
           )}
