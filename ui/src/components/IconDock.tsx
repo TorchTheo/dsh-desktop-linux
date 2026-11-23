@@ -1,5 +1,4 @@
 import {
-  Activity,
   History,
   MessageSquare,
   Moon,
@@ -76,7 +75,7 @@ export function IconDock() {
         <button
           type="button"
           onClick={() => setActiveView('studio')}
-          title="对话视图（Ctrl+1）"
+          title="会话工作区（Ctrl+1）"
           className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
             activeView === 'studio'
               ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
@@ -91,24 +90,8 @@ export function IconDock() {
 
         <button
           type="button"
-          onClick={() => setActiveView('trajectory')}
-          title="Agent 轨迹视图（Ctrl+2）"
-          className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
-            activeView === 'trajectory'
-              ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
-              : 'text-[var(--ink-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--ink-primary)]'
-          }`}
-        >
-          {activeView === 'trajectory' && (
-            <span className="absolute -left-1.5 h-3.5 w-1 bg-[var(--brand-primary)]" />
-          )}
-          <Activity className="h-4 w-4 stroke-[1.75]" />
-        </button>
-
-        <button
-          type="button"
           onClick={() => setActiveView('plugins')}
-          title="插件与扩展（Ctrl+3）"
+          title="插件与扩展（Ctrl+4）"
           className={`relative flex h-9 w-9 items-center justify-center rounded-md transition ${
             activeView === 'plugins'
               ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'

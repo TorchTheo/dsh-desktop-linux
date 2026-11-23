@@ -192,6 +192,20 @@ export interface UiMessage {
   isError: boolean
 }
 
+export interface SubagentNode {
+  sessionId: string
+  parentSessionId: string
+  name: string | null
+  label: string | null
+  mode: string | null
+  provider: string | null
+  model: string | null
+  createdAt: number
+  status: string
+  stopReason: string | null
+  children: SubagentNode[]
+}
+
 export interface UiSessionDetail {
   session: SessionSummary
   messages: UiMessage[]
@@ -199,6 +213,7 @@ export interface UiSessionDetail {
   model: string | null
   agentPreset?: string | null
   telemetry?: SessionTelemetry
+  subagents?: SubagentNode[]
 }
 
 export type UiSessionEvent =

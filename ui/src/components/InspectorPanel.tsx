@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { Check, Copy, FolderOpen, RefreshCw, X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
+import {
+  flattenSubagentTree,
+  formatStopReason,
+  formatSubagentStatusLabel,
+  mergeSubagentTree,
+  subagentStatusDotClass,
+} from '../utils/subagentStatus'
 
 function formatNum(n: number): string {
   return n.toLocaleString('zh-CN')
@@ -40,6 +47,8 @@ export function InspectorPanel() {
   const telemetryBySession = useAppStore((s) => s.telemetryBySession)
   const messagesBySession = useAppStore((s) => s.messagesBySession)
   const subagentsBySession = useAppStore((s) => s.subagentsBySession)
+  const subagentTreeBySession = useAppStore((s) => s.subagentTreeBySession)
+  const openSubagentDetail = useAppStore((s) => s.openSubagentDetail)
   const approvals = useAppStore((s) => s.approvals)
   const questions = useAppStore((s) => s.questions)
   const loadSessionHistory = useAppStore((s) => s.loadSessionHistory)
@@ -53,7 +62,15 @@ export function InspectorPanel() {
   const meta = activeSessionId ? sessionMetaById[activeSessionId] : undefined
   const telemetry = activeSessionId ? telemetryBySession[activeSessionId] : undefined
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : []
-  const subagents = activeSessionId ? (subagentsBySession[activeSessionId] ?? []) : []
+  const subagents = activeSessionId
+    ? flattenSubagentTree(
+        mergeSubagentTree(
+          subagentTreeBySession[activeSessionId] ?? [],
+          subagentsBySession[activeSessionId] ?? [],
+          activeSessionId,
+        ),
+      )
+    : []
   const pendingApprovals = approvals.filter(
     (a) => !activeSessionId || a.sessionId === activeSessionId,
   )
@@ -301,33 +318,36 @@ export function InspectorPanel() {
               </div>
             ) : (
               <ul className="relative space-y-2 border-l border-[var(--border-hairline)] pl-3">
-                {subagents.map((sa) => (
-                  <li
-                    key={sa.childSessionId}
-                    className="relative rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)]/60 px-2.5 py-2 text-[11px]"
-                  >
-                    <span
-                      className={`absolute -left-[16.5px] top-3 h-2 w-2 rotate-45 ${
-                        sa.kind === 'started'
-                          ? 'bg-[var(--brand-secondary)] animate-pulse'
-                          : sa.status === 'ok'
-                            ? 'bg-[var(--status-ok)]'
-                            : 'bg-[var(--brand-primary)]'
-                      }`}
-                    />
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono-tabular font-medium text-[var(--ink-primary)]">
-                        {sa.childSessionId.slice(0, 10)}
-                      </span>
-                      <span className="text-[10px] text-[var(--ink-secondary)]">
-                        {sa.kind === 'started' ? '运行中' : sa.status === 'ok' ? '已完成' : '异常'}
-                      </span>
-                    </div>
-                    {sa.stopReason && (
-                      <div className="mt-1 text-[10px] text-[var(--ink-muted)]">停止原因：{sa.stopReason}</div>
-                    )}
-                  </li>
-                ))}
+                {subagents.map((sa) => {
+                  const reasonText = formatStopReason(sa.stopReason)
+                  return (
+                    <li key={sa.sessionId} className="relative">
+                      <span
+                        className={`absolute -left-[16.5px] top-3 h-2 w-2 rounded-full ${subagentStatusDotClass(sa.status)}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeSessionId) openSubagentDetail(activeSessionId, sa.sessionId)
+                        }}
+                        className="block w-full rounded border border-[var(--border-hairline)] bg-[var(--bg-canvas)]/60 px-2.5 py-2 text-left text-[11px] transition hover:border-[var(--brand-primary)]/50 hover:bg-[var(--bg-hover)]/60"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-medium text-[var(--ink-primary)]">
+                            {sa.label || sa.name || sa.sessionId.slice(0, 10)}
+                          </span>
+                          <span className="shrink-0 text-[10px] text-[var(--ink-secondary)]">
+                            {formatSubagentStatusLabel(sa.status)}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 font-mono-tabular text-[10px] text-[var(--ink-muted)]">
+                          {sa.sessionId.slice(0, 8)}
+                          {reasonText ? ` · ${reasonText}` : ''}
+                        </div>
+                      </button>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </section>

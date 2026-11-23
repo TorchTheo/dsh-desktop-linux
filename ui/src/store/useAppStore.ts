@@ -16,6 +16,7 @@ import type {
   SessionTelemetry,
   SkillInfo,
   SubagentEvent,
+  SubagentNode,
   UiContentBlock,
   UiMessage,
   UiSessionEvent,
@@ -30,7 +31,8 @@ export interface SessionMeta {
   reasoningEffort?: string | null
 }
 
-export type ActiveView = 'studio' | 'trajectory' | 'plugins' | 'plugin-panel'
+export type ActiveView = 'studio' | 'plugins' | 'plugin-panel'
+export type SessionTab = 'chat' | 'trajectory' | 'subagents'
 
 export interface QueuedMessage {
   id: string
@@ -78,6 +80,8 @@ interface AppStore {
   searchQuery: string
   showArchived: boolean
   activeView: ActiveView
+  sessionTabById: Record<string, SessionTab>
+  selectedSubagentBySession: Record<string, string | null>
   activePluginPanelKey: string | null
   sidebarOpen: boolean
   inspectorOpen: boolean
@@ -95,12 +99,16 @@ interface AppStore {
   approvals: ApprovalRequestEvent[]
   questions: UserQuestionRequestEvent[]
   subagentsBySession: Record<string, SubagentEvent[]>
+  subagentTreeBySession: Record<string, SubagentNode[]>
   errorBanner: string | null
   settingsOpen: boolean
 
   bootstrap: () => Promise<() => void>
   setSettingsOpen: (open: boolean) => void
   setActiveView: (view: ActiveView) => void
+  setSessionTab: (tab: SessionTab, sessionId?: string | null) => void
+  openSubagentDetail: (parentSessionId: string, childSessionId: string) => void
+  setSelectedSubagent: (parentSessionId: string, childSessionId: string | null) => void
   openPluginPanel: (panelKey: string) => void
   setSidebarOpen: (open: boolean) => void
   setInspectorOpen: (open: boolean) => void
@@ -200,6 +208,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   searchQuery: '',
   showArchived: false,
   activeView: 'studio',
+  sessionTabById: {},
+  selectedSubagentBySession: {},
   activePluginPanelKey: null,
   sidebarOpen: true,
   inspectorOpen: false,
@@ -217,11 +227,37 @@ export const useAppStore = create<AppStore>((set, get) => ({
   approvals: [],
   questions: [],
   subagentsBySession: {},
+  subagentTreeBySession: {},
   errorBanner: null,
   settingsOpen: false,
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setActiveView: (view) => set({ activeView: view }),
+  setSessionTab: (tab, sessionId) =>
+    set((state) => {
+      const key = (sessionId !== undefined ? sessionId : state.activeSessionId) ?? '__draft__'
+      return {
+        activeView: 'studio',
+        sessionTabById: { ...state.sessionTabById, [key]: tab },
+      }
+    }),
+  openSubagentDetail: (parentSessionId, childSessionId) =>
+    set((state) => ({
+      activeView: 'studio',
+      activeSessionId: parentSessionId,
+      sessionTabById: { ...state.sessionTabById, [parentSessionId]: 'subagents' },
+      selectedSubagentBySession: {
+        ...state.selectedSubagentBySession,
+        [parentSessionId]: childSessionId,
+      },
+    })),
+  setSelectedSubagent: (parentSessionId, childSessionId) =>
+    set((state) => ({
+      selectedSubagentBySession: {
+        ...state.selectedSubagentBySession,
+        [parentSessionId]: childSessionId,
+      },
+    })),
   openPluginPanel: (panelKey) => set({ activeView: 'plugin-panel', activePluginPanelKey: panelKey }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setInspectorOpen: (open) => set({ inspectorOpen: open }),
@@ -655,6 +691,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
           sessionPresetById: detail.agentPreset
             ? { ...s.sessionPresetById, [sessionId]: detail.agentPreset }
             : s.sessionPresetById,
+          subagentTreeBySession: {
+            ...s.subagentTreeBySession,
+            [sessionId]: detail.subagents ?? [],
+          },
           sessionMetaById: {
             ...s.sessionMetaById,
             [sessionId]: {

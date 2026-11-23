@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Check, ChevronDown, ChevronRight, Copy } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import type { SubagentEvent, UiMessage } from '../types/domain'
+import type { SubagentNode, UiMessage } from '../types/domain'
+import {
+  flattenSubagentTree,
+  formatStopReason,
+  formatSubagentStatusLabel,
+  mergeSubagentTree,
+  normalizeSubagentStatus,
+} from '../utils/subagentStatus'
 
 type FilterKind = 'all' | 'thinking' | 'tool' | 'subagent' | 'error'
 
@@ -85,7 +92,7 @@ function stepBarColor(step: TraceStep): string {
   return '#246A4D'
 }
 
-function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTurn[] {
+function buildTurns(messages: UiMessage[], subagents: SubagentNode[]): TraceTurn[] {
   const resultByCallId = new Map<string, { content: unknown; isError: boolean; timestamp: number }>()
   for (const msg of messages) {
     for (const block of msg.blocks) {
@@ -224,19 +231,20 @@ function buildTurns(messages: UiMessage[], subagents: SubagentEvent[]): TraceTur
   if (subagents.length > 0) {
     const target = ensureTurn(Date.now())
     for (const sa of subagents) {
+      const norm = normalizeSubagentStatus(sa.status)
+      const labelText = formatSubagentStatusLabel(sa.status)
+      const reasonText = formatStopReason(sa.stopReason)
       target.steps.push({
-        id: `subagent-${sa.childSessionId}`,
+        id: `subagent-${sa.sessionId}`,
         stepLabel: '子代理',
         kind: 'subagent',
         category: '子代理',
-        title: `子代理 · ${sa.childSessionId.slice(0, 8)}`,
-        summary: sa.stopReason
-          ? `状态：${sa.status ?? sa.kind} · 原因：${sa.stopReason}`
-          : `状态：${sa.kind === 'started' ? '运行中' : (sa.status ?? sa.kind)}`,
-        timestamp: target.endTimestamp || Date.now(),
+        title: `子代理 · ${sa.label || sa.name || sa.sessionId.slice(0, 8)}`,
+        summary: reasonText ? `状态：${labelText} · ${reasonText}` : `状态：${labelText}`,
+        timestamp: sa.createdAt || target.endTimestamp || Date.now(),
         offsetMs: 0,
         durationMs: 0,
-        status: sa.kind === 'started' ? 'running' : sa.status === 'ok' ? 'ok' : 'error',
+        status: norm === 'running' ? 'running' : norm === 'error' ? 'error' : 'ok',
         input: sa,
       })
     }
@@ -312,6 +320,7 @@ export function TrajectoryView() {
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const messagesBySession = useAppStore((s) => s.messagesBySession)
   const subagentsBySession = useAppStore((s) => s.subagentsBySession)
+  const subagentTreeBySession = useAppStore((s) => s.subagentTreeBySession)
 
   const [filter, setFilter] = useState<FilterKind>('all')
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null)
@@ -319,7 +328,19 @@ export function TrajectoryView() {
   const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const messages = activeSessionId ? (messagesBySession[activeSessionId] ?? []) : []
-  const subagents = activeSessionId ? (subagentsBySession[activeSessionId] ?? []) : []
+  const subagents = useMemo(
+    () =>
+      activeSessionId
+        ? flattenSubagentTree(
+            mergeSubagentTree(
+              subagentTreeBySession[activeSessionId] ?? [],
+              subagentsBySession[activeSessionId] ?? [],
+              activeSessionId,
+            ),
+          )
+        : [],
+    [activeSessionId, subagentTreeBySession, subagentsBySession],
+  )
 
   const allTurns = useMemo(() => buildTurns(messages, subagents), [messages, subagents])
   const allSteps = useMemo(() => allTurns.flatMap((t) => t.steps), [allTurns])

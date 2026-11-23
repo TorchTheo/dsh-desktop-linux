@@ -94,7 +94,7 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-function formatClock(ms: number): string {
+export function formatClock(ms: number): string {
   if (!ms) return ''
   const d = new Date(ms)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -223,7 +223,7 @@ function ToolResultBlock({
   )
 }
 
-function renderBlock(block: UiContentBlock, index: number) {
+export function renderBlock(block: UiContentBlock, index: number) {
   switch (block.type) {
     case 'text':
       return (
@@ -281,7 +281,7 @@ function renderBlock(block: UiContentBlock, index: number) {
   }
 }
 
-function ProcessGroupDisclosure({ blocks }: { blocks: UiContentBlock[] }) {
+export function ProcessGroupDisclosure({ blocks }: { blocks: UiContentBlock[] }) {
   const [open, setOpen] = useState(false)
 
   const summaryParts = useMemo(() => {
@@ -350,7 +350,7 @@ function ProcessGroupDisclosure({ blocks }: { blocks: UiContentBlock[] }) {
   )
 }
 
-interface TurnGroup {
+export interface TurnGroup {
   id: string
   kind: 'user' | 'agent' | 'system'
   timestamp: number
@@ -362,7 +362,7 @@ interface TurnGroup {
   notices?: string[]
 }
 
-function groupMessagesIntoTurns(messages: UiMessage[]): TurnGroup[] {
+export function groupMessagesIntoTurns(messages: UiMessage[]): TurnGroup[] {
   const groups: TurnGroup[] = []
   let currentAgent: TurnGroup | null = null
 
@@ -552,7 +552,6 @@ export function ChatStream() {
   const sessions = useAppStore((s) => s.sessions)
   const approvals = useAppStore((s) => s.approvals)
   const questions = useAppStore((s) => s.questions)
-  const subagentsBySession = useAppStore((s) => s.subagentsBySession)
   const workerStatus = useAppStore((s) => s.workerStatus)
   const providers = useAppStore((s) => s.providers)
   const sendQuery = useAppStore((s) => s.sendQuery)
@@ -587,7 +586,6 @@ export function ChatStream() {
   const sessionQuestions = questions.filter(
     (q) => !activeSessionId || q.sessionId === activeSessionId,
   )
-  const subagents = activeSessionId ? (subagentsBySession[activeSessionId] ?? []) : []
   const totalModels = providers.reduce((acc, p) => acc + p.models.length, 0)
 
   const workerStatusText =
@@ -839,25 +837,6 @@ export function ChatStream() {
               isRunning={isSessionRunning}
               scrollContainerRef={scrollContainerRef}
             />
-
-            {subagents.length > 0 && (
-              <div className="flex flex-wrap gap-2 pl-9">
-                {subagents.map((sa) => (
-                  <div
-                    key={sa.childSessionId}
-                    className="inline-flex items-center gap-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-2.5 py-1 text-[11px] text-[var(--ink-secondary)]"
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rotate-45 ${
-                        sa.kind === 'started' ? 'bg-[var(--brand-secondary)] animate-pulse' : 'bg-[var(--status-ok)]'
-                      }`}
-                    />
-                    子代理 {sa.childSessionId.slice(0, 8)} ·{' '}
-                    {sa.kind === 'started' ? '运行中' : sa.status === 'ok' ? '已完成' : '异常'}
-                  </div>
-                ))}
-              </div>
-            )}
 
             {sessionApprovals.map((req) => (
               <ApprovalCard key={req.requestId} request={req} />

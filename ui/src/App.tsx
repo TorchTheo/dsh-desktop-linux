@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { AlertTriangle, PanelRight, X } from 'lucide-react'
 import { ChatStream } from './components/ChatStream'
 import { IconDock } from './components/IconDock'
@@ -6,9 +6,15 @@ import { InspectorPanel } from './components/InspectorPanel'
 import { SettingsModal } from './components/SettingsModal'
 import { Sidebar } from './components/Sidebar'
 import { PluginsView } from './components/PluginsView'
+import { SubagentsView } from './components/SubagentsView'
 import { DshPluginHostProvider, DshSlot, useDshSlots } from './plugins/dshPluginHost'
 import { TrajectoryView } from './components/TrajectoryView'
 import { useAppStore } from './store/useAppStore'
+import {
+  flattenSubagentTree,
+  mergeSubagentTree,
+  normalizeSubagentStatus,
+} from './utils/subagentStatus'
 
 export function App() {
   const bootstrap = useAppStore((s) => s.bootstrap)
@@ -19,16 +25,33 @@ export function App() {
   const sessions = useAppStore((s) => s.sessions)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const activeView = useAppStore((s) => s.activeView)
+  const sessionTabById = useAppStore((s) => s.sessionTabById)
+  const setSessionTab = useAppStore((s) => s.setSessionTab)
+  const subagentTreeBySession = useAppStore((s) => s.subagentTreeBySession)
+  const subagentsBySession = useAppStore((s) => s.subagentsBySession)
   const activePluginPanelKey = useAppStore((s) => s.activePluginPanelKey)
   const panelSlots = useDshSlots('sidebar.panellist')
   const activePluginPanelLabel =
     panelSlots.find((p) => (p.id ?? p.key ?? p.uid) === activePluginPanelKey)?.label ??
     activePluginPanelKey
-  const setActiveView = useAppStore((s) => s.setActiveView)
   const inspectorOpen = useAppStore((s) => s.inspectorOpen)
   const setInspectorOpen = useAppStore((s) => s.setInspectorOpen)
 
   const activeSession = sessions.find((s) => s.sessionId === activeSessionId)
+  const sessionTabKey = activeSessionId ?? '__draft__'
+  const activeSessionTab = sessionTabById[sessionTabKey] ?? 'chat'
+
+  const activeSubagentStats = useMemo(() => {
+    if (!activeSessionId) return { count: 0, running: 0 }
+    const merged = mergeSubagentTree(
+      subagentTreeBySession[activeSessionId] ?? [],
+      subagentsBySession[activeSessionId] ?? [],
+      activeSessionId,
+    )
+    const flat = flattenSubagentTree(merged)
+    const running = flat.filter((n) => normalizeSubagentStatus(n.status) === 'running').length
+    return { count: flat.length, running }
+  }, [activeSessionId, subagentTreeBySession, subagentsBySession])
 
   useEffect(() => {
     const STORAGE_KEY = 'dsh-desktop.zoom'
@@ -57,11 +80,14 @@ export function App() {
         st.setSidebarOpen(!st.sidebarOpen)
       } else if (e.key === '1') {
         e.preventDefault()
-        useAppStore.getState().setActiveView('studio')
+        useAppStore.getState().setSessionTab('chat')
       } else if (e.key === '2') {
         e.preventDefault()
-        useAppStore.getState().setActiveView('trajectory')
+        useAppStore.getState().setSessionTab('trajectory')
       } else if (e.key === '3') {
+        e.preventDefault()
+        useAppStore.getState().setSessionTab('subagents')
+      } else if (e.key === '4') {
         e.preventDefault()
         useAppStore.getState().setActiveView('plugins')
       }
@@ -91,11 +117,13 @@ export function App() {
             <h2 className="truncate text-sm font-semibold tracking-tight text-[var(--ink-primary)]">
               {activeView === 'plugin-panel'
                 ? (activePluginPanelLabel ?? '插件面板')
-                : activeSession
-                  ? (activeSession.title === 'New session' ? '新建会话' : activeSession.title)
-                  : '新建会话'}
+                : activeView === 'plugins'
+                  ? '插件与技能管理'
+                  : activeSession
+                    ? (activeSession.title === 'New session' ? '新建会话' : activeSession.title)
+                    : '新建会话'}
             </h2>
-            {activeSession && (
+            {activeView === 'studio' && activeSession && (
               <span className="font-mono-tabular hidden text-[10px] text-[var(--ink-muted)] sm:inline">
                 {activeSession.sessionId.slice(0, 8)}
               </span>
@@ -103,31 +131,52 @@ export function App() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            {/* Bauhaus Segmented View Switcher */}
-            <div className="inline-flex rounded border border-[var(--border-hairline)] bg-[var(--bg-recessed)] p-0.5">
-              <button
-                type="button"
-                onClick={() => setActiveView('studio')}
-                className={`font-mono-tabular rounded px-2.5 py-0.5 text-[11px] font-medium transition ${
-                  activeView === 'studio'
-                    ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
-                    : 'text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]'
-                }`}
-              >
-                对话
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveView('trajectory')}
-                className={`font-mono-tabular rounded px-2.5 py-0.5 text-[11px] font-medium transition ${
-                  activeView === 'trajectory'
-                    ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
-                    : 'text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]'
-                }`}
-              >
-                轨迹
-              </button>
-            </div>
+            {/* Session-Scoped Segmented View Switcher: 对话 | 轨迹 | 子代理 */}
+            {activeView === 'studio' && (
+              <div className="inline-flex rounded-md border border-[var(--border-hairline)] bg-[var(--bg-recessed)] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setSessionTab('chat')}
+                  className={`font-mono-tabular rounded px-2.5 py-0.5 text-[11px] font-medium transition ${
+                    activeSessionTab === 'chat'
+                      ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+                      : 'text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]'
+                  }`}
+                >
+                  对话
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSessionTab('trajectory')}
+                  className={`font-mono-tabular rounded px-2.5 py-0.5 text-[11px] font-medium transition ${
+                    activeSessionTab === 'trajectory'
+                      ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+                      : 'text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]'
+                  }`}
+                >
+                  轨迹
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSessionTab('subagents')}
+                  className={`font-mono-tabular inline-flex items-center gap-1.5 rounded px-2.5 py-0.5 text-[11px] font-medium transition ${
+                    activeSessionTab === 'subagents'
+                      ? 'bg-[var(--bg-surface)] text-[var(--ink-primary)] ring-1 ring-[var(--border-hairline)]'
+                      : 'text-[var(--ink-secondary)] hover:text-[var(--ink-primary)]'
+                  }`}
+                >
+                  {activeSubagentStats.running > 0 && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand-primary)] animate-pulse" />
+                  )}
+                  <span>子代理</span>
+                  {activeSubagentStats.count > 0 && (
+                    <span className="rounded bg-[var(--bg-recessed)] px-1 py-0 text-[10px] text-[var(--ink-secondary)]">
+                      {activeSubagentStats.count}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
 
             <button
               type="button"
@@ -174,9 +223,13 @@ export function App() {
         )}
 
         {activeView === 'studio' ? (
-          <ChatStream />
-        ) : activeView === 'trajectory' ? (
-          <TrajectoryView />
+          activeSessionTab === 'chat' ? (
+            <ChatStream />
+          ) : activeSessionTab === 'trajectory' ? (
+            <TrajectoryView />
+          ) : (
+            <SubagentsView />
+          )
         ) : activeView === 'plugin-panel' && activePluginPanelKey ? (
           <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--bg-canvas)]">
             <DshSlot
