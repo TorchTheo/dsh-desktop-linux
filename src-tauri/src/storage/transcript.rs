@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fs::{self, File},
     io::{self, BufRead},
     path::{Path, PathBuf},
@@ -7,7 +8,7 @@ use std::{
 use serde_json::Value;
 
 use crate::{
-    domain::{assistant_usage, SessionTelemetry, UiSessionDetail},
+    domain::{assistant_usage, SessionTelemetry, SubagentNode, UiSessionDetail},
     protocol::sdk_adapter::decode_message,
 };
 
@@ -33,6 +34,129 @@ pub fn find_session_log_path(dsh_home: &Path, session_id: &str) -> Option<PathBu
 pub(super) fn read_log(path: &Path) -> io::Result<impl Iterator<Item = io::Result<Vec<u8>>>> {
     let decoder = zstd::stream::Decoder::new(File::open(path)?)?;
     Ok(io::BufReader::new(decoder).split(b'\n'))
+}
+
+const MAX_SUBAGENT_DEPTH: usize = 8;
+
+fn collect_subagent(
+    children: &mut Vec<SubagentNode>,
+    seen: &mut HashSet<String>,
+    parent_session_id: &str,
+    data: &Value,
+) {
+    let Some(child_id) = data["childId"]
+        .as_str()
+        .filter(|id| session_id_component(id))
+    else {
+        return;
+    };
+    if !seen.insert(child_id.to_owned()) {
+        return;
+    }
+    children.push(SubagentNode {
+        session_id: child_id.into(),
+        parent_session_id: parent_session_id.into(),
+        name: data["name"].as_str().map(str::to_owned),
+        label: data["label"].as_str().map(str::to_owned),
+        mode: data["mode"].as_str().map(str::to_owned),
+        provider: data["agentProvider"]
+            .as_str()
+            .or_else(|| data["provider"].as_str())
+            .map(str::to_owned),
+        model: data["agentModel"]
+            .as_str()
+            .or_else(|| data["model"].as_str())
+            .map(str::to_owned),
+        created_at: data["childCreatedAt"].as_u64().unwrap_or_default(),
+        status: "unknown".into(),
+        stop_reason: None,
+        children: Vec::new(),
+    });
+}
+
+fn load_subagent_tree(
+    dsh_home: &Path,
+    children: &mut Vec<SubagentNode>,
+    visited: &mut HashSet<String>,
+    depth: usize,
+) {
+    children.retain_mut(|child| {
+        if !visited.insert(child.session_id.clone()) {
+            return false;
+        }
+        load_subagent(dsh_home, child, visited, depth);
+        true
+    });
+}
+
+fn load_subagent(
+    dsh_home: &Path,
+    child: &mut SubagentNode,
+    visited: &mut HashSet<String>,
+    depth: usize,
+) {
+    let Some(path) = find_session_log_path(dsh_home, &child.session_id) else {
+        return;
+    };
+    let Ok(lines) = read_log(&path) else {
+        return;
+    };
+    let mut turn_open = false;
+    let mut seen = HashSet::new();
+    let mut request_provider = None;
+    let mut request_model = None;
+    for line in lines.map_while(Result::ok) {
+        let Ok(event) = serde_json::from_slice::<Value>(&line) else {
+            continue;
+        };
+        let data = &event["data"];
+        match event["type"].as_str() {
+            Some("subagent/catalog") if depth < MAX_SUBAGENT_DEPTH => {
+                collect_subagent(&mut child.children, &mut seen, &child.session_id, data);
+            }
+            Some("subagent/descriptor") => {
+                update_subagent_field(&mut child.label, &data["label"]);
+                update_subagent_field(&mut child.mode, &data["mode"]);
+                update_subagent_field(&mut child.provider, &data["agentProvider"]);
+                update_subagent_field(&mut child.model, &data["agentModel"]);
+            }
+            Some("request/context") => {
+                update_subagent_field(&mut request_provider, &data["provider"]);
+                update_subagent_field(&mut request_model, &data["model"]);
+            }
+            Some("turn/start") => turn_open = true,
+            Some("turn/end") => {
+                turn_open = false;
+                let reason = &data["reason"];
+                let kind = reason["kind"].as_str().unwrap_or("unknown");
+                let nested_kind = reason["reason"]["kind"].as_str();
+                let (status, stop_reason) = match kind {
+                    "aborted" => (kind, nested_kind.or(Some(kind))),
+                    "error" | "failed" => (
+                        "error",
+                        reason["message"].as_str().or(nested_kind).or(Some(kind)),
+                    ),
+                    _ => (kind, None),
+                };
+                child.status = status.into();
+                child.stop_reason = stop_reason.map(str::to_owned);
+            }
+            _ => {}
+        }
+    }
+    if turn_open && path.with_file_name("session.lock").exists() {
+        child.status = "running".into();
+        child.stop_reason = None;
+    }
+    child.provider = request_provider.or(child.provider.take());
+    child.model = request_model.or(child.model.take());
+    load_subagent_tree(dsh_home, &mut child.children, visited, depth + 1);
+}
+
+fn update_subagent_field(field: &mut Option<String>, value: &Value) {
+    if let Some(value) = value.as_str() {
+        *field = Some(value.into());
+    }
 }
 
 fn cached_telemetry(rows: &Value) -> (SessionTelemetry, bool) {
@@ -86,11 +210,13 @@ pub fn load_session_transcript(
         model: None,
         agent_preset: rows["agentPreset"]["val"].as_str().map(str::to_owned),
         telemetry,
+        subagents: Vec::new(),
     };
 
     let cached_surface = detail.telemetry.surface_tokens;
     let has_cached_context = detail.telemetry.context_window.is_some();
     let mut transcript_usage = SessionTelemetry::default();
+    let mut seen_subagents = HashSet::new();
     for (line_index, line) in lines.enumerate() {
         let line = line.map_err(read_error)?;
         let Ok(event) = serde_json::from_slice::<Value>(&line) else {
@@ -154,6 +280,10 @@ pub fn load_session_transcript(
                 detail.model = data["model"].as_str().map(str::to_owned);
                 None
             }
+            Some("subagent/catalog") => {
+                collect_subagent(&mut detail.subagents, &mut seen_subagents, session_id, data);
+                None
+            }
             _ => None,
         };
         if let Some(message) = role
@@ -163,6 +293,8 @@ pub fn load_session_transcript(
         }
     }
 
+    let mut visited = HashSet::from([session_id.to_owned()]);
+    load_subagent_tree(dsh_home, &mut detail.subagents, &mut visited, 1);
     Ok(detail)
 }
 
@@ -174,6 +306,74 @@ mod tests {
 
     use super::*;
     use crate::{domain::UiContentBlock, storage::tests::TestHome};
+
+    #[test]
+    fn loads_recursive_subagents_and_opens_child_history() {
+        let home = TestHome::new();
+        home.write_log(
+            "parent",
+            r#"{"type":"subagent/catalog","data":{"childId":"child","name":"worker","label":"Catalog label","mode":"fork","childCreatedAt":10}}
+{"type":"subagent/catalog","data":{"childId":"missing","label":"Missing child"}}
+{"type":"subagent/catalog","data":{"childId":"child","name":"duplicate"}}
+{"type":"subagent/catalog","data":{"childId":"live"}}"#,
+        );
+        home.write_log(
+            "child",
+            r#"{"type":"subagent/descriptor","data":{"label":"Descriptor label","agentProvider":"descriptor-provider","agentModel":"descriptor-model"}}
+{"type":"turn/start"}
+{"type":"subagent/catalog","data":{"childId":"grandchild","childCreatedAt":12}}
+{"type":"request/context","data":{"model":"request-model"}}
+{"type":"assistant/message","data":{"message":{"id":"child-answer","content":"Child answer"}}}
+{"type":"turn/end","data":{"reason":{"kind":"completed"}}}"#,
+        );
+        home.write_log(
+            "grandchild",
+            r#"{"type":"subagent/catalog","data":{"childId":"child"}}
+{"type":"turn/end","data":{"reason":{"kind":"aborted","reason":{"kind":"parent"}}}}"#,
+        );
+        home.write_log(
+            "live",
+            r#"{"type":"turn/end","data":{"reason":{"kind":"failed","message":"Earlier error"}}}
+{"type":"turn/start"}"#,
+        );
+
+        let load = || load_session_transcript(&home.0, "parent").unwrap();
+        let detail = load();
+        let [child, missing, live] = detail.subagents.as_slice() else {
+            panic!("expected three distinct children in catalog order");
+        };
+        assert_eq!(child.session_id, "child");
+        assert_eq!(child.parent_session_id, "parent");
+        assert_eq!(child.name.as_deref(), Some("worker"));
+        assert_eq!(child.label.as_deref(), Some("Descriptor label"));
+        assert_eq!(child.mode.as_deref(), Some("fork"));
+        assert_eq!(child.provider.as_deref(), Some("descriptor-provider"));
+        assert_eq!(child.model.as_deref(), Some("request-model"));
+        assert_eq!(child.created_at, 10);
+        assert_eq!(child.status, "completed");
+        assert_eq!(child.stop_reason, None);
+        let [grandchild] = child.children.as_slice() else {
+            panic!("expected one grandchild");
+        };
+        assert_eq!(grandchild.session_id, "grandchild");
+        assert_eq!(grandchild.parent_session_id, "child");
+        assert_eq!(grandchild.status, "aborted");
+        assert_eq!(grandchild.stop_reason.as_deref(), Some("parent"));
+        assert!(grandchild.children.is_empty());
+        assert_eq!(missing.session_id, "missing");
+        assert_eq!(missing.status, "unknown");
+        assert_eq!(live.status, "error");
+        assert_eq!(live.stop_reason.as_deref(), Some("Earlier error"));
+
+        home.write("sessions/project/live/session.lock", b"");
+        let detail = load();
+        assert_eq!(detail.subagents[2].status, "running");
+        assert_eq!(detail.subagents[2].stop_reason, None);
+
+        let child_detail = load_session_transcript(&home.0, &child.session_id).unwrap();
+        assert_eq!(child_detail.messages[0].id, "child-answer");
+        assert_eq!(child_detail.subagents, child.children);
+    }
 
     #[test]
     fn loads_presented_deliverables() {

@@ -410,6 +410,23 @@ pub struct RewindResult {
     pub workspace_note: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentNode {
+    pub session_id: String,
+    pub parent_session_id: String,
+    pub name: Option<String>,
+    pub label: Option<String>,
+    pub mode: Option<String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub created_at: u64,
+    pub status: String,
+    pub stop_reason: Option<String>,
+    #[serde(default)]
+    pub children: Vec<SubagentNode>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiSessionDetail {
@@ -421,6 +438,8 @@ pub struct UiSessionDetail {
     pub agent_preset: Option<String>,
     #[serde(default)]
     pub telemetry: SessionTelemetry,
+    #[serde(default)]
+    pub subagents: Vec<SubagentNode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

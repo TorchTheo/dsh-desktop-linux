@@ -869,14 +869,23 @@ fn dispatch_notification(
             ) else {
                 return;
             };
+            let reason = &params["reason"];
+            let aborted = method == "subagent.finished" && reason["kind"] == "aborted";
             BackendEvent::Subagent(SubagentEvent {
                 kind: method.trim_start_matches("subagent.").into(),
                 parent_session_id: parent.into(),
                 child_session_id: child.into(),
-                status: params["status"].as_str().map(str::to_owned),
-                stop_reason: params["stopReason"]
+                status: if aborted {
+                    Some("aborted".into())
+                } else {
+                    params["status"].as_str().map(str::to_owned)
+                },
+                stop_reason: reason["reason"]["kind"]
                     .as_str()
+                    .filter(|_| aborted)
+                    .or_else(|| params["stopReason"].as_str())
                     .or_else(|| params["stopReason"]["kind"].as_str())
+                    .or(aborted.then_some("aborted"))
                     .map(str::to_owned),
             })
         }
@@ -1246,6 +1255,28 @@ mod tests {
                 },
             }]
         );
+    }
+
+    #[test]
+    fn subagent_finished_preserves_aborted_reason() {
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+        dispatch_notification(
+            &sender,
+            &ServerRequests::default(),
+            &mut SessionEventState::default(),
+            "subagent.finished",
+            json!({
+                "parentSessionId": "parent",
+                "childSessionId": "child",
+                "status": "error",
+                "reason": {"kind": "aborted", "reason": {"kind": "parent"}}
+            }),
+        );
+        let BackendEvent::Subagent(event) = receiver.try_recv().unwrap() else {
+            panic!("expected a subagent event");
+        };
+        assert_eq!(event.status.as_deref(), Some("aborted"));
+        assert_eq!(event.stop_reason.as_deref(), Some("parent"));
     }
 
     #[test]
