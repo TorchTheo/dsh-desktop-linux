@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Sparkles, Star } from 'lucide-react'
+import { Check, ChevronDown, Lock, Sparkles, Star } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import type { AgentPresetInfo } from '../types/domain'
 
@@ -41,6 +41,10 @@ export function PresetSelector() {
   const activeSessionId = useAppStore((s) => s.activeSessionId)
   const sessionPresetById = useAppStore((s) => s.sessionPresetById)
   const pendingNewSessionPreset = useAppStore((s) => s.pendingNewSessionPreset)
+  const activeMessagesCount = useAppStore((s) =>
+    s.activeSessionId ? (s.messagesBySession[s.activeSessionId]?.length ?? 0) : 0,
+  )
+  const isSessionLocked = activeSessionId !== null && activeMessagesCount > 0
   const workerStatus = useAppStore((s) => s.workerStatus)
   const setSessionPreset = useAppStore((s) => s.setSessionPreset)
   const setDefaultAgentPreset = useAppStore((s) => s.setDefaultAgentPreset)
@@ -94,13 +98,21 @@ export function PresetSelector() {
 
       {open && (
         <div className="absolute bottom-full left-0 z-40 mb-1.5 w-76 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] shadow-sm">
-          <div className="flex items-center justify-between border-b border-[var(--bg-recessed)] bg-[var(--bg-canvas)] px-3 py-1.5">
-            <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
-              Agent 模式 / 预设
-            </span>
-            <span className="font-mono-tabular text-[10px] text-[var(--ink-muted)]">
-              共 {presets.length} 项
-            </span>
+          <div className="border-b border-[var(--bg-recessed)] bg-[var(--bg-canvas)] px-3 py-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-mono-tabular text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-secondary)]">
+                Agent 模式 / 预设
+              </span>
+              <span className="font-mono-tabular text-[10px] text-[var(--ink-muted)]">
+                共 {presets.length} 项
+              </span>
+            </div>
+            {isSessionLocked && (
+              <div className="mt-1 flex items-center gap-1 text-[10px] text-[var(--ink-muted)]">
+                <Lock className="h-2.5 w-2.5 shrink-0" />
+                <span>当前会话已开始，模式已锁定；切换将设为新会话默认</span>
+              </div>
+            )}
           </div>
 
           <ul className="max-h-72 overflow-y-auto py-1">

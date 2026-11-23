@@ -538,60 +538,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setSessionModel: async (provider, model, reasoningEffort = null) => {
-    let sessionId = get().activeSessionId
+    const sessionId = get().activeSessionId
     if (!sessionId) {
-      const st = get()
-      const draftCwd = st.pendingNewSessionCwd ?? undefined
-      const draftModel = st.pendingNewSessionModel
-      const draftPreset = st.pendingNewSessionPreset
-      const draftPermission = st.pendingNewSessionPermission
-      const created = await get().createSession(draftCwd)
-      if (!created) return
-      sessionId = created.sessionId
       set({
-        pendingNewSessionModel: null,
-        pendingNewSessionPreset: null,
-        pendingNewSessionPermission: null,
+        pendingNewSessionModel: { provider, model, reasoningEffort },
+        errorBanner: null,
       })
-      if (draftPreset) {
-        try {
-          const res = await api.setSessionPreset(sessionId, draftPreset)
-          set((s) => ({
-            sessionPresetById: { ...s.sessionPresetById, [res.sessionId]: res.presetId },
-          }))
-        } catch {
-          // Ignore preset errors on first turn
-        }
-      }
-      if (draftModel?.provider && draftModel?.model) {
-        try {
-          const sel = await api.setSessionModel(
-            sessionId,
-            draftModel.provider,
-            draftModel.model,
-            draftModel.reasoningEffort ?? null,
-          )
-          set((s) => ({
-            sessionMetaById: {
-              ...s.sessionMetaById,
-              [sessionId!]: {
-                provider: sel.provider,
-                model: sel.model,
-                reasoningEffort: sel.reasoningEffort,
-              },
-            },
-          }))
-        } catch {
-          // Ignore model apply errors
-        }
-      }
-      if (draftPermission) {
-        try {
-          await api.setSessionPermission(sessionId, draftPermission)
-        } catch {
-          // Ignore permission apply errors
-        }
-      }
+      return
     }
     try {
       const selected = await api.setSessionModel(sessionId, provider, model, reasoningEffort)
@@ -699,6 +652,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           telemetryBySession: detail.telemetry
             ? { ...s.telemetryBySession, [sessionId]: detail.telemetry }
             : s.telemetryBySession,
+          sessionPresetById: detail.agentPreset
+            ? { ...s.sessionPresetById, [sessionId]: detail.agentPreset }
+            : s.sessionPresetById,
           sessionMetaById: {
             ...s.sessionMetaById,
             [sessionId]: {
@@ -765,6 +721,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
             ? 'studio'
             : state.activeView,
         loadedHistoryIds: { ...state.loadedHistoryIds, [session.sessionId]: true },
+        sessionPresetById: state.defaultPresetId
+          ? { ...state.sessionPresetById, [session.sessionId]: state.defaultPresetId }
+          : state.sessionPresetById,
         errorBanner: null,
       }))
       return session
@@ -780,9 +739,90 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     let sessionId = get().activeSessionId
     if (!sessionId) {
-      const created = await get().createSession()
+      const st = get()
+      const draftCwd = st.pendingNewSessionCwd ?? undefined
+      const draftModel = st.pendingNewSessionModel
+      const draftPreset = st.pendingNewSessionPreset
+      const draftPermission = st.pendingNewSessionPermission
+      const created = await get().createSession(draftCwd)
       if (!created) return
       sessionId = created.sessionId
+      set({
+        pendingNewSessionModel: null,
+        pendingNewSessionPreset: null,
+        pendingNewSessionPermission: null,
+      })
+      if (draftPreset) {
+        try {
+          const res = await api.setSessionPreset(sessionId, draftPreset)
+          set((s) => ({
+            sessionPresetById: { ...s.sessionPresetById, [res.sessionId]: res.presetId },
+          }))
+        } catch (error) {
+          const presetName =
+            get().agentPresets.find((p) => p.id === draftPreset)?.name ?? draftPreset
+          set({
+            errorBanner: `应用模式「${presetName}」失败，已取消发送：${String(error)}`,
+          })
+          return
+        }
+      }
+      if (draftModel?.provider && draftModel?.model) {
+        try {
+          const sel = await api.setSessionModel(
+            sessionId,
+            draftModel.provider,
+            draftModel.model,
+            draftModel.reasoningEffort ?? null,
+          )
+          set((s) => ({
+            sessionMetaById: {
+              ...s.sessionMetaById,
+              [sessionId!]: {
+                provider: sel.provider,
+                model: sel.model,
+                reasoningEffort: sel.reasoningEffort,
+              },
+            },
+          }))
+        } catch {
+          // Ignore model apply errors
+        }
+      }
+      if (draftPermission) {
+        try {
+          const permRes = await api.setSessionPermission(sessionId, draftPermission)
+          set((s) => {
+            const prev = s.telemetryBySession[sessionId!] ?? {
+              uncachedInputTokens: 0,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+              outputTokens: 0,
+              contextWindow: null,
+              surfaceTokens: null,
+              systemTokens: null,
+              toolsTokens: null,
+              messageTokens: null,
+              sandboxMode: null,
+              approvalPolicy: null,
+              turnCount: 0,
+              snapshotCount: 0,
+            }
+            return {
+              telemetryBySession: {
+                ...s.telemetryBySession,
+                [sessionId!]: {
+                  ...prev,
+                  sandboxMode: permRes.sandboxMode,
+                  approvalPolicy: permRes.approvalPolicy,
+                },
+              },
+            }
+          })
+        } catch {
+          // Ignore permission apply errors
+        }
+      }
     }
 
     const activeSession = get().sessions.find((s) => s.sessionId === sessionId)

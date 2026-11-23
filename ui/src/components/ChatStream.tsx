@@ -324,7 +324,26 @@ function ProcessGroupDisclosure({ blocks }: { blocks: UiContentBlock[] }) {
       </button>
       {open && (
         <div className="border-t border-[var(--border-hairline)] bg-[var(--bg-canvas)]/70 px-3 py-2">
-          {blocks.map((block, idx) => renderBlock(block, idx))}
+          {blocks.map((block, idx) =>
+            block.type === 'text' ? (
+              <div
+                key={idx}
+                className="my-1.5 rounded border border-[var(--border-hairline)] bg-[var(--bg-surface)] px-3 py-2"
+              >
+                <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-[var(--ink-muted)]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--ink-muted)]" />
+                  <span>过程说明</span>
+                </div>
+                <div className="markdown-body text-xs leading-relaxed text-[var(--ink-secondary)]">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                    {block.text}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ) : (
+              renderBlock(block, idx)
+            ),
+          )}
         </div>
       )}
     </div>
@@ -422,8 +441,14 @@ function groupMessagesIntoTurns(messages: UiMessage[]): TurnGroup[] {
       }
     }
 
+    const hasToolUse = msg.blocks.some((b) => b.type === 'toolUse')
     for (const block of msg.blocks) {
-      if (block.type === 'thinking' || block.type === 'toolUse' || block.type === 'toolResult') {
+      if (
+        block.type === 'thinking' ||
+        block.type === 'toolUse' ||
+        block.type === 'toolResult' ||
+        (hasToolUse && block.type === 'text')
+      ) {
         currentAgent.processBlocks.push(block)
       } else {
         currentAgent.finalBlocks.push(block)

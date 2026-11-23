@@ -197,6 +197,7 @@ export interface UiSessionDetail {
   messages: UiMessage[]
   provider: string | null
   model: string | null
+  agentPreset?: string | null
   telemetry?: SessionTelemetry
 }
 
