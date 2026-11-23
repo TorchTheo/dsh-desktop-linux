@@ -10,7 +10,7 @@ dist/
 # Tauri
 /src-tauri/gen/
 
-# 本地构建临时目录（替代 /tmp，绕开配额）
+# Local build scratch dirs
 /.build-tmp/
 /.build-target/
 
@@ -19,7 +19,3 @@ dist/
 *.swp
 .idea/
 .vscode/
-
-# 会话临时文件
-.fs_test
-icon.png.b64
